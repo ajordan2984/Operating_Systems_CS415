@@ -1,0 +1,92 @@
+/*
+ * main.cpp
+ *
+ *  Created on: Jan 26, 2017
+ *      Author: andrew
+quick commands:
+ g++ main.cpp -> compiles main when in directory
+ .a/.out main.cpp -> only works when in directory of project
+ ps -> shows working processes
+ find help on topic : example - man fork() 
+ execvp -> okay to use as its in the same family of exec commands
+ chdir(*char) -> changes directory, save current directory and new directory
+ */
+
+
+
+
+
+
+#include <iostream>
+#include <stdio.h>
+#include <unistd.h>
+// used with chdir() -> changes working directory
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <stdlib.h>
+using namespace std;
+
+int main(int argc,char* argv[])
+{
+
+	// Creates child process
+	pid_t pid = fork();
+	if (pid == -1)
+	{
+		perror ("fork went wrong");
+	}
+	if (pid == 0)
+	{
+		//child process
+		cout<<"In child:"<<pid<<endl;
+
+		// change directory example
+		string dotdot = "..";
+
+
+		// declaration
+		char* args[3];
+		string ls ="ls";
+		string dash_l = "-l";
+		args[0]= (char*)ls.c_str();
+		args[1]= (char*)dash_l.c_str();
+		args[2]= NULL;
+
+		// Changes directories
+		if (chdir(dotdot.c_str()) == -1)
+			cout<<"Did not change directories"<<endl;
+
+		// Executes commands
+		if (execvp (args[0],args)==-1)
+			perror("exec");
+
+	}
+	if (pid>0)
+	{
+		//Parrent process
+		// Asking parrent to wait
+		if (wait(0)==-1)
+		{
+			perror("wait failed");
+		}
+		cout<<"parrent:"<<pid<<endl;
+	}
+
+
+
+
+
+	/*
+	if (argc == 1)
+		cout<<"1 argument listed"<<endl;
+	else
+	{
+		for (int i = 1;i<argc;i++)
+			cout<<argv[i]<<endl;
+	}
+
+	*/
+
+
+	return 0;
+}
