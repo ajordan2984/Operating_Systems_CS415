@@ -10,6 +10,8 @@ quick commands:
  find help on topic : example - man fork() 
  execvp -> okay to use as its in the same family of exec commands
  chdir(*char) -> changes directory, save current directory and new directory
+ ctrl + Z -> stop process
+ kill %1 -> kills associated process by number
  */
 
 /*
