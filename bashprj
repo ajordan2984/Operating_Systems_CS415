@@ -12,10 +12,12 @@ quick commands:
  chdir(*char) -> changes directory, save current directory and new directory
  */
 
-
-
-
-
+/*
+ * main.cpp
+ *
+ *  Created on: Jan 26, 2017
+ *      Author: andrew
+ */
 
 #include <iostream>
 #include <stdio.h>
@@ -24,69 +26,65 @@ quick commands:
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <stdlib.h>
+#include <dirent.h>
 using namespace std;
+
+void child_parser(int,char*[]);
 
 int main(int argc,char* argv[])
 {
-
-	// Creates child process
-	pid_t pid = fork();
-	if (pid == -1)
+    pid_t REpid = fork(); // returned pid
+	switch (REpid)
 	{
+	case -1:
 		perror ("fork went wrong");
-	}
-	if (pid == 0)
-	{
-		//child process
-		cout<<"In child:"<<pid<<endl;
-
-		// change directory example
-		string dotdot = "..";
-
-
-		// declaration
-		char* args[3];
-		string ls ="ls";
-		string dash_l = "-l";
-		args[0]= (char*)ls.c_str();
-		args[1]= (char*)dash_l.c_str();
-		args[2]= NULL;
-
-		// Changes directories
-		if (chdir(dotdot.c_str()) == -1)
-			cout<<"Did not change directories"<<endl;
-
-		// Executes commands
-		if (execvp (args[0],args)==-1)
-			perror("exec");
-
-	}
-	if (pid>0)
-	{
-		//Parrent process
-		// Asking parrent to wait
+		exit(1);
+		break;
+	case 0:
+		cout<<"In child:"<<REpid<<endl;
+		child_parser(argc,argv);
+		exit(0);
+		break;
+	default:
 		if (wait(0)==-1)
-		{
-			perror("wait failed");
-		}
-		cout<<"parrent:"<<pid<<endl;
+		perror("wait failed");
+
+		child_parser(argc,argv);
+		cout<<"parrent:"<<REpid<<endl;
+		break;
 	}
-
-
-
-
-
-	/*
-	if (argc == 1)
-		cout<<"1 argument listed"<<endl;
-	else
-	{
-		for (int i = 1;i<argc;i++)
-			cout<<argv[i]<<endl;
-	}
-
-	*/
-
 
 	return 0;
+}
+
+
+void child_parser(int argc,char* argv[])
+{
+	/*
+	 * Steps:
+	 * 1. parse string
+	 * 2. take off any /n,/r,/t chars at end
+	 * 3. attach NULL end of array
+	 * 4. still working on this
+	 */
+	// Changes directories
+	if (argv[1]== std::string("cd"))
+	{
+		int changedir_test = chdir(argv[2]);
+		if (changedir_test == -1)
+			cout<<"Did not change directories"<<endl;
+	}
+	// Executes commands
+
+	else
+	{
+		cout<<"Error"<<endl;
+
+		/*
+		int checkEXEC = execvp(argv[0],argv);
+		if (checkEXEC == -1)
+			perror("exec encountered an error");
+			*/
+	}
+
 }
