@@ -22,40 +22,111 @@ quick commands:
  */
 
 #include <iostream>
-#include <stdio.h>
 #include <unistd.h>
 // used with chdir() -> changes working directory
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <string>
+#include <stdio.h>
+#include <ctype.h>
+#include <algorithm>
 using namespace std;
 
-void child_parser(int,char*[]);
-
-int main(int argc,char* argv[])
+struct args
 {
-    pid_t REpid = fork(); // returned pid
-	switch (REpid)
-	{
-	case -1:
-		perror ("fork went wrong");
-		exit(1);
-		break;
-	case 0:
-		cout<<"In child:"<<REpid<<endl;
-		child_parser(argc,argv);
-		exit(0);
-		break;
-	default:
-		if (wait(0)==-1)
-		perror("wait failed");
-		cout<<"parrent:"<<REpid<<endl;
-		break;
-	}
+	int argc;
+	char **argv;
+};
 
+
+void child_parser(int,char*[]);
+args* parser(char*);
+
+
+int main(void)
+{
+	char input[1500];
+
+	while (true)
+	{
+		fgets(input,1500,stdin);
+		parser(input);
+
+
+		pid_t REpid = fork(); // returned pid
+		switch (REpid)
+		{
+			case -1:
+				perror ("fork went wrong");
+				exit(1);
+				break;
+			case 0:
+				cout<<"In child:"<<REpid<<endl;
+				//child_parser(argc,argv);
+				exit(0);
+				break;
+			default:
+				if (wait(0)==-1)
+					perror("wait failed");
+				cout<<"parrent:"<<REpid<<endl;
+				break;
+		}//end switch
+	}// end infinite while
 	return 0;
 }
+
+
+
+args* parser(char* argv)
+{
+	args *arguments = new args;
+	int counter = 0;
+	int i =0;
+	int j =0;
+	string segment ="";
+
+	while(argv[i] != NULL)
+	{
+		if (argv[i] == ' ')
+		counter++;
+		while (argv[i]==' ')
+			i++;
+		i++;
+	}
+
+	// store arguments plus 1 for a null argument
+	arguments->argv = new char*[counter +1];
+	arguments->argc = counter+1;
+
+	for (int i=0;i<1500;i++)
+	{
+		if ((argv[i] != '/n') &&( argv[i] != '/r') && (argv[i] != '/t'))
+		{
+			if (argv[i]== ' ')
+			{
+				char *temp = new char[segment.size()+1];
+
+				for (int i=0;i<segment.size();i++)
+					temp[i]=segment[i];
+
+				temp[segment.size()+1] = NULL;
+				arguments->argv[j]=temp;
+				j++;
+				segment="";
+			}
+			else
+				segment += argv[i];
+		}
+		if (argv[i] == NULL)
+			break;
+	}// end for
+
+return arguments;
+}
+
+
 
 
 void child_parser(int argc,char* argv[])
@@ -88,13 +159,19 @@ void child_parser(int argc,char* argv[])
 
 	else
 	{
-		cout<<"Error"<<endl;
+		cout<<"in execvp part"<<endl;
+		char *myc[3];
+		string lscmd = "ls";
+		string dshl = "-l";
 
-		/*
-		int checkEXEC = execvp(argv[0],argv);
+		myc[0] = (char*)lscmd.c_str();
+		myc[1] = (char*)dshl.c_str();
+		myc[2] = NULL;
+
+		int checkEXEC = execvp(myc[0],myc);
+		//int checkEXEC = execvp(argv[1],argv);
 		if (checkEXEC == -1)
 			perror("exec encountered an error");
-			*/
 	}
 
 }
