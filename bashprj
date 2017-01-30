@@ -82,48 +82,56 @@ int main(void)
 args* parser(char* argv)
 {
 	args *arguments = new args;
+	string segment;
+	int segment_size = 1;
 	int counter = 0;
-	int i =0;
-	int j =0;
-	string segment ="";
+	int i = 0;
+	int j = 0;
 
-	while(argv[i] != NULL)
+	// counts number of arguments 
+	while (argv[i] != NULL)
 	{
-		if (argv[i] == ' ')
-		counter++;
-		while (argv[i]==' ')
+		if (argv[i] != ' ' && argv[i] != '/n' && argv[i] != '/r' && argv[i] != '/t')
+			counter++;
+		while (argv[i] != ' ' && argv[i] != '/n' && argv[i] != '/r' && argv[i] != '/t' && argv[i] != NULL)
 			i++;
 		i++;
 	}
-
 	// store arguments plus 1 for a null argument
-	arguments->argv = new char*[counter +1];
-	arguments->argc = counter+1;
-
-	for (int i=0;i<1500;i++)
+	arguments->argv = new char*[counter + 1];
+	arguments->argc = counter;
+	//reset counter
+	i = 0; 
+	while (i<MAXS)
 	{
-		if ((argv[i] != '/n') &&( argv[i] != '/r') && (argv[i] != '/t'))
+		if ((argv[i] != ' ') && (argv[i] != '\n') && (argv[i] != '\r') && (argv[i] != '\t') && (argv[i] != NULL))
 		{
-			if (argv[i]== ' ')
+			while ((argv[i] != ' ') && (argv[i] != '\n') && (argv[i] != '\r') && (argv[i] != '\t') && (argv[i] != NULL))
 			{
-				char *temp = new char[segment.size()+1];
-
-				for (int i=0;i<segment.size();i++)
-					temp[i]=segment[i];
-
-				temp[segment.size()+1] = NULL;
-				arguments->argv[j]=temp;
-				j++;
-				segment="";
-			}
-			else
 				segment += argv[i];
+				segment_size++;
+				i++;
+			}
+			//grab new memory for string
+			char *temp = new char[segment_size];
+			// transfer characters from string to new char array
+			for (int i = 0; i < segment_size; i++)
+				temp[i] = segment[i];
+			//store the command into the struct
+			arguments->argv[j] = temp;
+			// bump the command char array in the struct
+			j++;
+			// empty out segment to be reused
+			segment = "";
 		}
 		if (argv[i] == NULL)
 			break;
-	}// end for
-
-return arguments;
+		i++;
+		segment_size = 1;
+	}//end while
+	arguments->argv[arguments->argc] = NULL;
+	//return pointer containing arguments
+	return arguments;
 }
 
 
