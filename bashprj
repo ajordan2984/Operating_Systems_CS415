@@ -29,10 +29,20 @@ quick commands:
 #include <stdlib.h>
 #include <dirent.h>
 #include <string>
-#include <stdio.h>
 #include <ctype.h>
 #include <algorithm>
+#include <string.h>
+#include <stdio.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <queue>
 using namespace std;
+
+
+int open(const char *pathname,int flags);
+int open(const char *pathname,int flags, mode_t mode);
+int creat(const char *pathname,mode_t mode);
 
 struct args
 {
@@ -40,9 +50,10 @@ struct args
 	char **argv;
 };
 
-
-void child_parser(int,char*[]);
 args* parser(char*);
+char* s2c(string,int);
+bool dir(args*);
+void USER_PWD();
 
 
 int main(void)
@@ -58,7 +69,8 @@ int main(void)
 		fgets(input,1500,stdin);
 		args *aptr;
 		aptr = parser(input);
-		runexec = non_exec(aptr);
+
+		runexec = dir(aptr);
 
 		pid_t REpid = fork(); // returned pid
 		switch (REpid)
@@ -73,7 +85,7 @@ int main(void)
 				checkEXEC = execvp(aptr->argv[0],aptr->argv);
 				if (checkEXEC == -1)
 				perror("exec");
-				exit(0);
+				kill (REpid,SIGTERM);
 				break;
 			default:
 				if (wait(0)==-1)
@@ -84,7 +96,6 @@ int main(void)
 	}// end infinite while
 	return 0;
 }
-
 
 args* parser(char* argv)
 {
@@ -110,8 +121,9 @@ args* parser(char* argv)
 	cmdptr = strtok(argv," \n\t\r\a");
 	while (cmdptr != NULL)
 	{
-		cout<<cmdptr;
-		while (i < (strlen(cmdptr)+1)) //cmdptr[i] != '\0'
+		cout<<">>"<<cmdptr<<" "<<endl;
+		int section = static_cast< int >(strlen(cmdptr));
+		while (i < (section+1))
 		{
 
 			if (cmdptr[i]=='<')
@@ -187,10 +199,18 @@ args* parser(char* argv)
 	//return pointer containing arguments
 	return arguments;
 }
-
-void non_exe(args *cmdptr)
+char* s2c(string data,int length)
 {
+	char *p = new char[length+1];
+	for (int i =0;i<length;i++)
+	p[i]=data[i];
 
+	p[length]='\0';
+	return p;
+}
+bool dir(args *cmdptr)
+{
+	bool temp;
 	// cycle through commands
 	for (int i =0;i<cmdptr->argc;i++)
 	{
@@ -202,6 +222,7 @@ void non_exe(args *cmdptr)
 			else
 				{
 					USER_PWD();
+					temp = true;
 					break;
 				}
 		}// if cd
@@ -209,13 +230,18 @@ void non_exe(args *cmdptr)
 		if (cmdptr->argv[i]==std::string("pwd"))
 			{
 				USER_PWD();
+				temp = true;
 				break;
 			}
+		if (cmdptr->argv[i]==std::string(">"))
+		{
+			//int in = open("output",O_WRONLY|O_CREAT);
+			//dup2(in,STDIN_FILENO);
+			//close(in);
+		}
 	}// end for
-
+return temp;
 }// end non_exe
-
-
 void USER_PWD()
 {
 	char buffer[200];
@@ -223,5 +249,3 @@ void USER_PWD()
 	string currpath = newpath;
 	cout<<">>"<<currpath<<endl;
 }
-
-
