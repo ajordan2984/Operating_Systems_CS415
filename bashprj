@@ -59,40 +59,42 @@ void USER_PWD();
 int main(void)
 {
 	char input[1500];
-	bool runexec = true;
+	bool runexec = false;
 	int checkEXEC;
-	for (int i=0;i<1500;i++)
-			input[i]= '\0';
 
 	while (true)
 	{
+		for (int i=0;i<1500;i++)
+				input[i]= '\0';
+
 		fgets(input,1500,stdin);
 		args *aptr;
 		aptr = parser(input);
-
 		runexec = dir(aptr);
-
-		pid_t REpid = fork(); // returned pid
-		switch (REpid)
+		if (!runexec)
 		{
-			case -1:
-				perror ("fork");
-				exit(1);
-				break;
-			case 0:
-				cout<<">>child process:"<<REpid<<endl;
-				if (!runexec)
-				checkEXEC = execvp(aptr->argv[0],aptr->argv);
-				if (checkEXEC == -1)
-				perror("exec");
-				kill (REpid,SIGTERM);
-				break;
-			default:
-				if (wait(0)==-1)
-					perror("wait");
-				cout<<">>Parent process:"<<REpid<<endl;
-				break;
-		}//end switch
+			pid_t REpid = fork(); // returned pid
+					switch (REpid)
+					{
+						case -1:
+							perror ("fork");
+							exit(1);
+							break;
+						case 0:
+							cout<<">>Child process:"<<REpid<<" starting up:"<<endl;
+							checkEXEC = execvp(aptr->argv[0],aptr->argv);
+							if (checkEXEC == -1)
+							perror("exec");
+							kill (REpid,SIGTERM);
+							break;
+						default:
+							if (wait(0)==-1)
+								perror("wait");
+							cout<<">> Parent process "<<REpid<<" now continuing..:"<<endl;
+							break;
+					}//end switch
+		}// if runexec
+cout<<"here"<<endl;
 	}// end infinite while
 	return 0;
 }
@@ -121,7 +123,7 @@ args* parser(char* argv)
 	cmdptr = strtok(argv," \n\t\r\a");
 	while (cmdptr != NULL)
 	{
-		cout<<">>"<<cmdptr<<" "<<endl;
+		cout<<">>"<<cmdptr<<" ";
 		int section = static_cast< int >(strlen(cmdptr));
 		while (i < (section+1))
 		{
@@ -210,7 +212,7 @@ char* s2c(string data,int length)
 }
 bool dir(args *cmdptr)
 {
-	bool temp;
+	bool temp = false;
 	// cycle through commands
 	for (int i =0;i<cmdptr->argc;i++)
 	{
