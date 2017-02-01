@@ -21,12 +21,13 @@ quick commands:
  *      Author: andrew
  */
 
+#include <fstream>
+#include <cstdlib>
 #include <iostream>
 #include <unistd.h>
 // used with chdir() -> changes working directory
 #include <sys/wait.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <string>
@@ -39,11 +40,6 @@ quick commands:
 #include <sys/stat.h>
 #include <queue>
 using namespace std;
-
-
-int open(const char *pathname,int flags);
-int open(const char *pathname,int flags, mode_t mode);
-int creat(const char *pathname,mode_t mode);
 
 struct args
 {
@@ -96,11 +92,8 @@ int main(void)
 					}
 					if (aptr->argv[n] == string(">"))
 					{
-						const char* st = aptr->argv[n + 1];
-						int newfd = open(st,
-						O_CREAT|
-						O_WRONLY|
-						O_TRUNC, 0644);
+						int newfd = open(aptr->argv[n + 1],
+						O_CREAT|O_WRONLY|O_TRUNC, 0);
 						close(STDOUT_FILENO);
 						dup2(newfd, 1);
 						aptr->argv[n] = NULL;
@@ -108,16 +101,24 @@ int main(void)
 					}
 					else if (aptr->argv[n] == string(">>"))
 					{
-						const char* st = aptr->argv[n + 1];
-						int newfd = open(st,
-						O_CREAT|
-						O_WRONLY|
-						O_APPEND, 0644);
+						int newfd = open(aptr->argv[n + 1],
+						O_CREAT|O_WRONLY|O_APPEND, 0);
 						close(STDOUT_FILENO);
 						dup2(newfd, 1);
 						aptr->argv[n] = NULL;
 						checkEXEC = execvp(aptr->argv[0], aptr->argv);
 					}
+					else if (aptr->argv[n] == string("<"))
+					{
+						/*
+						char buffer[1000];
+						int newfd = open(aptr->argv[n + 1],
+						O_CREAT|O_WRONLY|O_APPEND, 0);
+						if(read(newfd, buffer, 1000) == -1)
+							cout << "read failed" << endl;
+						aptr->argv[n] = NULL;
+						*/
+					}	
 					else
       					{	checkEXEC = execvp (aptr->argv[0], aptr->argv);	}
 				}
@@ -287,3 +288,4 @@ void USER_PWD()
 	string currpath = newpath;
 	cout<<">>"<<currpath<<endl;
 }
+
