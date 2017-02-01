@@ -105,6 +105,7 @@ args* parser(char* argv)
 	while (cmdptr != NULL)
 	{
 		arguments->argv[j]=cmdptr;
+		j++;
 		cout<<cmdptr<<" ";
 		cmdptr = strtok(NULL," \n\t\r\a");
 	}
