@@ -40,10 +40,6 @@ quick commands:
 using namespace std;
 
 
-int open(const char *pathname,int flags);
-int open(const char *pathname,int flags, mode_t mode);
-int creat(const char *pathname,mode_t mode);
-
 struct args
 {
 	int argc;
@@ -54,6 +50,7 @@ args* parser(char*);
 char* s2c(string,int);
 bool dir(args*);
 void USER_PWD();
+void IOchange(char *);
 
 
 int main(void)
@@ -94,7 +91,6 @@ int main(void)
 							break;
 					}//end switch
 		}// if runexec
-cout<<"here"<<endl;
 	}// end infinite while
 	return 0;
 }
@@ -121,9 +117,10 @@ args* parser(char* argv)
 
 	// split cstring with strtok using delimeters
 	cmdptr = strtok(argv," \n\t\r\a");
+	cout<<">>";
 	while (cmdptr != NULL)
 	{
-		cout<<">>"<<cmdptr<<" ";
+		cout<<cmdptr<<" ";
 		int section = static_cast< int >(strlen(cmdptr));
 		while (i < (section+1))
 		{
@@ -237,9 +234,11 @@ bool dir(args *cmdptr)
 			}
 		if (cmdptr->argv[i]==std::string(">"))
 		{
-			//int in = open("output",O_WRONLY|O_CREAT);
-			//dup2(in,STDIN_FILENO);
-			//close(in);
+			/*
+			IOchange(cmdptr->argv[i+1]);
+			temp = true;
+			break;
+			*/
 		}
 	}// end for
 return temp;
@@ -250,4 +249,12 @@ void USER_PWD()
 	char *newpath = getcwd(buffer,200);
 	string currpath = newpath;
 	cout<<">>"<<currpath<<endl;
+}
+void IOchange(char *data)
+{
+	if(std::freopen(data, "w", stdout))
+	{
+		std::printf("stdout is redirected to a file\n"); // this is written to redir.txt
+		std::fclose(stdout);
+	}
 }
