@@ -48,30 +48,37 @@ args* parser(char*);
 int main(void)
 {
 	char input[1500];
+	bool runexec = true;
+	int checkEXEC;
+	for (int i=0;i<1500;i++)
+			input[i]= '\0';
 
 	while (true)
 	{
 		fgets(input,1500,stdin);
 		args *aptr;
 		aptr = parser(input);
-
+		runexec = non_exec(aptr);
 
 		pid_t REpid = fork(); // returned pid
 		switch (REpid)
 		{
 			case -1:
-				perror ("fork went wrong");
+				perror ("fork");
 				exit(1);
 				break;
 			case 0:
-				cout<<"In child:"<<REpid<<endl;
-				//child_parser(argc,argv);
+				cout<<">>child process:"<<REpid<<endl;
+				if (!runexec)
+				checkEXEC = execvp(aptr->argv[0],aptr->argv);
+				if (checkEXEC == -1)
+				perror("exec");
 				exit(0);
 				break;
 			default:
 				if (wait(0)==-1)
-					perror("wait failed");
-				cout<<"parrent:"<<REpid<<endl;
+					perror("wait");
+				cout<<">>Parent process:"<<REpid<<endl;
 				break;
 		}//end switch
 	}// end infinite while
