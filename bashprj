@@ -116,52 +116,40 @@ arguments->argv[arguments->argc] = NULL;
 return arguments;
 }
 
-
-
-
-void child_parser(int argc,char* argv[])
+void non_exe(args *cmdptr)
 {
-	/*
-	 * Steps:
-	 * 1. parse string
-	 * 2. take off any /n,/r,/t chars at end
-	 * 3. attach NULL end of array
-	 */
-	// Changes directories
-	if (argv[1]== std::string("cd"))
-	{
-		string stuff;
-		int changedir_test = chdir(argv[2]);
-		if (changedir_test == -1)
-			cout<<"Did not change directories"<<endl;
 
-		// Success on changing directories
-		// so display current path
-		else
+	// cycle through commands
+	for (int i =0;i<cmdptr->argc;i++)
+	{
+		if (cmdptr->argv[i]==std::string("cd"))
 		{
-			char buffer[200];
-			char *newpath = getcwd(buffer,200);
-			string currpath = newpath;
-			cout<<currpath<<endl;
-		}
-	}
-	// Executes commands
+			int changedir_test = chdir(cmdptr->argv[i++]);
+			if (changedir_test == -1)
+				cout<<">>Did not change directories"<<endl;
+			else
+				{
+					USER_PWD();
+					break;
+				}
+		}// if cd
 
-	else
-	{
-		cout<<"in execvp part"<<endl;
-		char *myc[3];
-		string lscmd = "ls";
-		string dshl = "-l";
+		if (cmdptr->argv[i]==std::string("pwd"))
+			{
+				USER_PWD();
+				break;
+			}
+	}// end for
 
-		myc[0] = (char*)lscmd.c_str();
-		myc[1] = (char*)dshl.c_str();
-		myc[2] = NULL;
+}// end non_exe
 
-		int checkEXEC = execvp(myc[0],myc);
-		//int checkEXEC = execvp(argv[1],argv);
-		if (checkEXEC == -1)
-			perror("exec encountered an error");
-	}
 
+void USER_PWD()
+{
+	char buffer[200];
+	char *newpath = getcwd(buffer,200);
+	string currpath = newpath;
+	cout<<">>"<<currpath<<endl;
 }
+
+
