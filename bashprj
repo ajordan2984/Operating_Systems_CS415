@@ -90,18 +90,83 @@ args* parser(char* argv)
 {
 	args *arguments = new args;
 	int counter;
+	int i=0;
+	int IOcounter =0;
+	string temp ="";
+
+	char dg[] = {'>','>','\0'};
+	char dl[] = {'<','<','\0'};
+	char grtr[] ={ '>','\0'};
+	char less[] = {'<','\0'};
+	bool storelastcmd = false;
 
 	// store commands in Q
 	queue<char*> cmds;
 	// grab individual commands with pointer
 	char *cmdptr;
+
+
 	// split cstring with strtok using delimeters
 	cmdptr = strtok(argv," \n\t\r\a");
 	while (cmdptr != NULL)
 	{
-		cmds.push(cmdptr);
-		cout<<cmdptr<<" ";
-		cmdptr = strtok(NULL," \n\t\r\a");
+		cout<<cmdptr;
+		while (i < (strlen(cmdptr)+1)) //cmdptr[i] != '\0'
+		{
+
+			if (cmdptr[i]=='<')
+			{
+				if (temp != "")
+				cmds.push(s2c(temp,IOcounter));
+
+				if(cmdptr[i]=='<' && cmdptr[i+1]=='<')
+				{
+					cmds.push(dl);
+					i+=2;
+				}
+				else
+					{
+						cmds.push(less);
+						i++;
+					}
+			temp="";
+			IOcounter=1;
+			storelastcmd = true;
+			}// end if <
+
+			if (cmdptr[i]=='>')
+			{
+				if (temp != "")
+				cmds.push(s2c(temp,IOcounter));
+				if(cmdptr[i]=='>' && cmdptr[i+1]=='>')
+				{
+					cmds.push(dg);
+					i+=2;
+				}
+				else
+					{
+						cmds.push(grtr);
+						i++;
+					}
+			temp="";
+			IOcounter=1;
+			storelastcmd = true;
+			}// end if >
+
+			temp += cmdptr[i];
+			IOcounter++;
+			i++;
+		}// end while looking for <,<<,>>,> symbols
+
+		if (storelastcmd)
+		 {
+			 cmds.push(s2c(temp,IOcounter));
+			 storelastcmd = false;
+		 }
+		 else
+			 cmds.push(cmdptr);
+
+		 cmdptr = strtok(NULL," \n\t\r\a");
 	}
 	cout<<endl;
 	// store arguments plus 1 for a null argument
@@ -110,8 +175,11 @@ args* parser(char* argv)
 	arguments->argv = new char*[counter+1];
 
 	//move commands from q to char array
-	for (int i=0;i<counter;i++,cmds.pop())
-		arguments->argv[i] = cmds.front();
+	for (int i=0;i<counter;i++)
+		{
+			arguments->argv[i] = cmds.front();
+			cmds.pop();
+		}
 
 	cmds.empty();
 	//Set last element equal to null to tell linux where to quit
