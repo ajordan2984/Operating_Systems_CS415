@@ -26,6 +26,7 @@ quick commands:
 // used with chdir() -> changes working directory
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <dirent.h>
 #include <string>
@@ -87,31 +88,38 @@ int main(void)
 					for (int i = 0; i < aptr->argc; ++i)
 					{
 						if (aptr->argv[i] == std::string(">") ||
-						(aptr->argv[i] == std::string("<") ||
-						(aptr->argv[i] == std::string("<<") ||
-						(aptr->argv[i] == std::string(">>"))
+						aptr->argv[i] == std::string("<") ||
+						aptr->argv[i] == std::string("<<") ||
+						aptr->argv[i] == std::string(">>"))
 						{	n = i;	}
 						
 					}
-					if (pass->argv[n] == string(">"))
+					if (aptr->argv[n] == string(">"))
 					{
-						int newfd = open(pass->argv[n + 1], O_CREAT|O_WRONLY|O_TRUNC, 0644);
+						const char* st = aptr->argv[n + 1];
+						int newfd = open(st,
+						O_CREAT|
+						O_WRONLY|
+						O_TRUNC, 0644);
 						close(STDOUT_FILENO);
 						dup2(newfd, 1);
-						pass->argv[1] = NULL;
-						execvp(pass->argv[0], pass->argv);
+						aptr->argv[n] = NULL;
+						checkEXEC = execvp(aptr->argv[0], aptr->argv);
 					}
-					else if (pass->argv[n] == string(">>"))
+					else if (aptr->argv[n] == string(">>"))
 					{
-						int newfd = open(pass->argv[n + 1], O_CREAT|O_WRONLY|O_APPEND, 0644);
+						const char* st = aptr->argv[n + 1];
+						int newfd = open(st,
+						O_CREAT|
+						O_WRONLY|
+						O_APPEND, 0644);
 						close(STDOUT_FILENO);
 						dup2(newfd, 1);
-						pass->argv[1] = NULL;
-						execvp(pass->argv[0], pass->argv);
+						aptr->argv[n] = NULL;
+						checkEXEC = execvp(aptr->argv[0], aptr->argv);
 					}
 					else
-      					{	execvp (pass->argv[0], pass->argv);	}
-					checkEXEC = execvp(aptr->argv[0],aptr->argv);
+      					{	checkEXEC = execvp (aptr->argv[0], aptr->argv);	}
 				}
 				if (checkEXEC == -1)
 				perror("exec");
