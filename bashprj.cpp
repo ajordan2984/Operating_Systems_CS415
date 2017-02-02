@@ -104,7 +104,7 @@ void order(char *input)
 }
 void fork_off(args *aptr)
 {
-	bool runexec = false;
+	bool runexec;
 	int checkEXEC;
 	if (aptr->argv[0]== std::string("exit_"))
 		quit_process();
@@ -177,6 +177,7 @@ void fork_off(args *aptr)
 
 								if (checkEXEC == -1)
 									perror("exec");
+								cout<<"Child process now dieing.."<<endl;
 								kill (REpid,SIGTERM);
 								break;
 							}
@@ -281,26 +282,28 @@ bool dir(args *cmdptr)
 	{
 		if (cmdptr->argv[i]==std::string("cd"))
 		{
-			if (cmdptr->argv[i+1]==std::string(".."))
+			if (cmdptr->argv[i+1]=='\0')
+				changedir_test = 1;
+			else if (cmdptr->argv[i+1]==std::string(".."))
 				 changedir_test = chdir("..");
-			if (cmdptr->argv[i+1]==std::string("../.."))
+			else if (cmdptr->argv[i+1]==std::string("../.."))
 				 changedir_test = chdir("../..");
+			else if (cmdptr->argv[i+1]!='\0')
+				changedir_test = chdir(cmdptr->argv[i+1]);
 
 			if (changedir_test == -1)
 				cout<<">>Error:Did not change directories."<<endl;
-			else
+			if (changedir_test != -1)
 				{
 					USER_PWD();
-					temp = true;
-					break;
+					return true;
 				}
 		}// if cd
 
 		if (cmdptr->argv[i]==std::string("pwd"))
 			{
 				USER_PWD();
-				temp = true;
-				break;
+				return true;
 			}
 	}// end for
 return temp;
