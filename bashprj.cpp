@@ -2,6 +2,23 @@
  * main.cpp
  *
  *  Created on: Jan 26, 2017
+ *      Author: andrew
+quick commands:
+ g++ main.cpp -> compiles main when in directory
+ .a/.out main.cpp -> only works when in directory of project
+ ps -> shows working processes
+ find help on topic : example - man fork()
+ execvp -> okay to use as its in the same family of exec commands
+ chdir(*char) -> changes directory, save current directory and new directory
+ ctrl + Z -> stop process
+ kill %1 -> kills associated process by number
+ less -FX filename - read file in
+ */
+
+/*
+ * main.cpp
+ *
+ *  Created on: Jan 26, 2017
  *      Author: Andrew Jordan
  *       		Lucas Pruitt
  *       		Adam Moses
@@ -155,21 +172,25 @@ void fork_off(args *aptr)
 								if (aptr->argv[m] == std::string("<"))
 								  {
 										char buffer[1000];
+										for(int i = 0; i < 1000; i++)
+											buffer[i]= '\0';
 								    	auto newID = open(aptr->argv[m+1], O_CREAT
 								    		|O_RDONLY, 0644);
 
 								    	if(read(newID, buffer, 1000) == -1)
 								    		exit(-1);
 
-								    for(int i = 0; i < 1000; i++)
-								    	if(buffer[i] == '\n' ||buffer[i] == '\t'||buffer[i] == '\r'|| buffer[i] == '\a')
-								    		buffer[i] = ' ';
+								    	// Parse commands from file and update args
+								    	args *temp = parser(buffer);
+								    	args *newarguments = new args;
+								    	newarguments->argv = new char* [(temp->argc)+2];
+										newarguments->argv[0] = aptr->argv[m -1];
+								    	for (int i=1;i< (temp->argc)+1;i++)
+								    		newarguments->argv[i] = temp->argv[i-1];
 
-								    // Set last place to NULL
-								    buffer[999] = '\0';
-								    aptr->argv[m] = buffer;
-								    aptr->argv[m + 1] = NULL;
-								    execvp(aptr->argv[0], aptr->argv);
+								    	newarguments->argv[(temp->argc)+1] = '\0';
+								    	//execute new args
+								    	execvp(newarguments->argv[0], newarguments->argv);
 								  }
 
 								else
