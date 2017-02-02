@@ -50,7 +50,6 @@ args* parser(char*);
 char* s2c(string,int);
 bool dir(args*);
 void USER_PWD();
-void IOchange(char *);
 
 
 int main(void)
@@ -67,6 +66,7 @@ int main(void)
 		fgets(input,1500,stdin);
 		args *aptr;
 		aptr = parser(input);
+
 		runexec = dir(aptr);
 		if (!runexec)
 		{
@@ -78,12 +78,69 @@ int main(void)
 							exit(1);
 							break;
 						case 0:
-							cout<<">>Child process:"<<REpid<<" starting up:"<<endl;
-							checkEXEC = execvp(aptr->argv[0],aptr->argv);
+						{
+							cout<<">>Child process:"<<REpid<<" starting up.."<<endl;
+
+							int m = 0;
+							for (int i = 0; i < aptr->argc; i++)
+							  {
+							    if (aptr->argv[i] == std::string(">") ||
+								aptr->argv[i] == std::string("<") ||
+								aptr->argv[i] == std::string("<<") ||
+								aptr->argv[i] == std::string(">>"))
+							      {	m = i;	}
+
+							  }
+							if (aptr->argv[m] == std::string(">"))
+							  {
+
+								for (int i=0;i<aptr->argc;i++)
+								cout<<aptr->argv[i]<<endl;
+
+								int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_TRUNC, 0644);
+							    	close(STDOUT_FILENO);
+							    	dup2(newfd, 1);
+							    aptr->argv[m] = NULL;
+							    checkEXEC = execvp(aptr->argv[0], aptr->argv);
+							  }
+							if (aptr->argv[m] == std::string(">>"))
+							  {
+							    int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_APPEND, 0644);
+							    close(STDOUT_FILENO);
+							    dup2(newfd, 1);
+							    aptr->argv[m] = NULL;
+							    checkEXEC = execvp(aptr->argv[0], aptr->argv);
+							  }
+							if (aptr->argv[m] == std::string("<"))
+							  {
+							    int i = m;
+							    char buffer[1000];
+							    char* cp;
+
+							    auto newID = open(aptr->argv[m+1], O_CREAT|O_RDONLY, 0644);
+
+							    if(read(newID, buffer, 1000) == -1)
+							      exit(-1);
+
+							    for(int i = 0; i < 1000; i++)
+							    	if(buffer[i] == '\n' ||buffer[i] == '\t'||buffer[i] == '\r')
+							    		buffer[i] = ' ';
+
+							    // Set last place to NULL
+							    buffer[999] = '\0';
+							    aptr->argv[m] = buffer;
+							    aptr->argv[m + 1] = NULL;
+
+							    execvp(aptr->argv[0], aptr->argv);
+							  }
+							else
+							 checkEXEC = execvp (aptr->argv[0], aptr->argv);
+
 							if (checkEXEC == -1)
-							perror("exec");
+								perror("exec");
 							kill (REpid,SIGTERM);
 							break;
+						}
 						default:
 							if (wait(0)==-1)
 								perror("wait");
@@ -94,7 +151,6 @@ int main(void)
 	}// end infinite while
 	return 0;
 }
-
 args* parser(char* argv)
 {
 	args *arguments = new args;
@@ -103,10 +159,10 @@ args* parser(char* argv)
 	int IOcounter =0;
 	string temp ="";
 
-	char dg[] = {'>','>','\0'};
-	char dl[] = {'<','<','\0'};
-	char grtr[] ={ '>','\0'};
-	char less[] = {'<','\0'};
+	char *dg = new char[3]{'>','>','\0'};
+	char *dl = new char[3]{'<','<','\0'};
+	char *grtr = new char[2]{ '>','\0'};
+	char *less = new char[2]{'<','\0'};
 	bool storelastcmd = false;
 
 	// store commands in Q
@@ -189,6 +245,7 @@ args* parser(char* argv)
 	for (int i=0;i<counter;i++)
 		{
 			arguments->argv[i] = cmds.front();
+			cout<<arguments->argv[i]<<endl;
 			cmds.pop();
 		}
 
@@ -232,14 +289,6 @@ bool dir(args *cmdptr)
 				temp = true;
 				break;
 			}
-		if (cmdptr->argv[i]==std::string(">"))
-		{
-			/*
-			IOchange(cmdptr->argv[i+1]);
-			temp = true;
-			break;
-			*/
-		}
 	}// end for
 return temp;
 }// end non_exe
@@ -249,12 +298,4 @@ void USER_PWD()
 	char *newpath = getcwd(buffer,200);
 	string currpath = newpath;
 	cout<<">>"<<currpath<<endl;
-}
-void IOchange(char *data)
-{
-	if(std::freopen(data, "w", stdout))
-	{
-		std::printf("stdout is redirected to a file\n"); // this is written to redir.txt
-		std::fclose(stdout);
-	}
 }
