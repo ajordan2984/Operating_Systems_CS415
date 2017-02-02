@@ -37,6 +37,7 @@ quick commands:
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <queue>
+#include <signal.h>
 using namespace std;
 
 
@@ -47,234 +48,242 @@ struct args
 };
 
 args* parser(char*);
-char* s2c(string,int);
+void order(char*);
+char* S2C(string,int);
 bool dir(args*);
 void USER_PWD();
+void fork_off(args *);
+void sig_handler (int);
 
 
-int main(void)
+
+int main(int argc,char *argv[])
 {
-	char input[1500];
-	bool runexec = false;
-	int checkEXEC;
+	if (argc>1)
+	{
+		args *aptr = new args;
+		aptr->argc = argc;
+		aptr->argv = new char*[argc+1];
+		for (int i=1;i<argc;i++)
+			aptr->argv[i-1]=argv[i];
+		aptr->argv[aptr->argc] = '\0';
+		fork_off(aptr);
+	}
 
+	char input[1500];
 	while (true)
 	{
+		if (signal(SIGINT,sig_handler)== SIG_ERR)
+		{
+			cout<<"Signal not caught.."<<endl;
+		}
 		for (int i=0;i<1500;i++)
 				input[i]= '\0';
 
+
 		fgets(input,1500,stdin);
-		args *aptr;
-		aptr = parser(input);
-
-		runexec = dir(aptr);
-		if (!runexec)
-		{
-			pid_t REpid = fork(); // returned pid
-					switch (REpid)
-					{
-						case -1:
-							perror ("fork");
-							exit(1);
-							break;
-						case 0:
-						{
-							cout<<">>Child process:"<<REpid<<" starting up.."<<endl;
-
-							int m = 0;
-							for (int i = 0; i < aptr->argc; i++)
-							  {
-							    if (aptr->argv[i] == std::string(">") ||
-								aptr->argv[i] == std::string("<") ||
-								aptr->argv[i] == std::string("<<") ||
-								aptr->argv[i] == std::string(">>"))
-							      {	m = i;	}
-
-							  }
-							if (aptr->argv[m] == std::string(">"))
-							  {
-
-								for (int i=0;i<aptr->argc;i++)
-								cout<<aptr->argv[i]<<endl;
-
-								int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_TRUNC, 0644);
-							    	close(STDOUT_FILENO);
-							    	dup2(newfd, 1);
-							    aptr->argv[m] = NULL;
-							    checkEXEC = execvp(aptr->argv[0], aptr->argv);
-							  }
-							if (aptr->argv[m] == std::string(">>"))
-							  {
-							    int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_APPEND, 0644);
-							    close(STDOUT_FILENO);
-							    dup2(newfd, 1);
-							    aptr->argv[m] = NULL;
-							    checkEXEC = execvp(aptr->argv[0], aptr->argv);
-							  }
-							if (aptr->argv[m] == std::string("<"))
-							  {
-							    int i = m;
-							    char buffer[1000];
-							    char* cp;
-
-							    auto newID = open(aptr->argv[m+1], O_CREAT|O_RDONLY, 0644);
-
-							    if(read(newID, buffer, 1000) == -1)
-							      exit(-1);
-
-							    for(int i = 0; i < 1000; i++)
-							    	if(buffer[i] == '\n' ||buffer[i] == '\t'||buffer[i] == '\r')
-							    		buffer[i] = ' ';
-
-							    // Set last place to NULL
-							    buffer[999] = '\0';
-							    aptr->argv[m] = buffer;
-							    aptr->argv[m + 1] = NULL;
-
-							    execvp(aptr->argv[0], aptr->argv);
-							  }
-							else
-							 checkEXEC = execvp (aptr->argv[0], aptr->argv);
-
-							if (checkEXEC == -1)
-								perror("exec");
-							kill (REpid,SIGTERM);
-							break;
-						}
-						default:
-							if (wait(0)==-1)
-								perror("wait");
-							cout<<">> Parent process "<<REpid<<" now continuing..:"<<endl;
-							break;
-					}//end switch
-		}// if runexec
+		order(input);
 	}// end infinite while
 	return 0;
+}
+
+void order(char *input)
+{
+	args *aptr;
+	aptr = parser(input);
+	fork_off(aptr);
+}
+void fork_off(args *aptr)
+{
+	bool runexec = false;
+	int checkEXEC;
+	if (aptr->argv[0]== std::string("exit_"))
+		exit(0);
+
+	runexec = dir(aptr);
+			if (!runexec)
+			{
+				pid_t REpid = fork(); // returned pid
+						switch (REpid)
+						{
+							case -1:
+								perror ("fork");
+								exit(1);
+								break;
+							case 0:
+							{
+								cout<<">>Child process:"<<REpid<<" starting up.."<<endl;
+
+								int m = 0;
+								for (int i = 0; i < aptr->argc; i++)
+								  {
+								    if (aptr->argv[i] == std::string(">") ||
+									aptr->argv[i] == std::string("<") ||
+									aptr->argv[i] == std::string("<<") ||
+									aptr->argv[i] == std::string(">>"))
+								      {	m = i;	}
+
+								  }
+								if (aptr->argv[m] == std::string(">"))
+								  {
+
+										int newfd = open(aptr->argv[m + 1],O_CREAT
+											|O_WRONLY|O_TRUNC, 0644);
+								    	close(STDOUT_FILENO);
+								    	dup2(newfd, 1);
+								    	aptr->argv[m] = NULL;
+								    	checkEXEC = execvp(aptr->argv[0], aptr->argv);
+								  }
+								if (aptr->argv[m] == std::string(">>"))
+								  {
+								    	int newfd = open(aptr->argv[m + 1],
+								    			O_CREAT|O_WRONLY|O_APPEND, 0644);
+								    	close(STDOUT_FILENO);
+								    	dup2(newfd, 1);
+								    	aptr->argv[m] = NULL;
+								    	checkEXEC = execvp(aptr->argv[0], aptr->argv);
+								  }
+								if (aptr->argv[m] == std::string("<"))
+								  {
+
+								    	for (int i=0;i<aptr->argc;i++)
+								    		cout<<aptr->argv[i]<<endl;
+								    	cout<<"___________"<<endl;
+
+									char buffer[1000];
+								    	auto newID = open(aptr->argv[m+1], O_CREAT
+								    		|O_RDONLY, 0644);
+
+								    	if(read(newID, buffer, 1000) == -1)
+								    		exit(-1);
+
+								    for(int i = 0; i < 1000; i++)
+								    	if(buffer[i] == '\n' ||buffer[i] == '\t'||buffer[i] == '\r'|| buffer[i] == '\a')
+								    		buffer[i] = ' ';
+
+								    // Set last place to NULL
+								    buffer[999] = '\0';
+								    aptr->argv[m] = buffer;
+								    aptr->argv[m + 1] = NULL;
+								    execvp(aptr->argv[0], aptr->argv);
+								  }
+
+								else
+								 checkEXEC = execvp (aptr->argv[0], aptr->argv);
+
+								if (checkEXEC == -1)
+									perror("exec");
+								kill (REpid,SIGTERM);
+								break;
+							}
+							default:
+								if (wait(0)==-1)
+									perror("wait");
+								cout<<">> Parent process "<<REpid<<" now continuing..:"<<endl;
+								break;
+						}//end switch
+			}// if runexec
 }
 args* parser(char* argv)
 {
 	args *arguments = new args;
-	int counter;
-	int i=0;
-	int IOcounter =0;
-	string temp ="";
+	string segment = "";
+	int segment_size = 0;
+	int i = 0;
+	char *GGRTR = new char[3]{'>', '>', '\0'};
+	char *LLESS = new char[3]{'<', '<', '\0'};
+	char *GRTR = new char[2]{'>', '\0'};
+	char *LESS = new char[2]{'<', '\0'};
+	bool store_command = false;
+	queue<char*> Qcommands;
 
-	char *dg = new char[3]{'>','>','\0'};
-	char *dl = new char[3]{'<','<','\0'};
-	char *grtr = new char[2]{ '>','\0'};
-	char *less = new char[2]{'<','\0'};
-	bool storelastcmd = false;
-
-	// store commands in Q
-	queue<char*> cmds;
-	// grab individual commands with pointer
-	char *cmdptr;
-
-
-	// split cstring with strtok using delimeters
-	cmdptr = strtok(argv," \n\t\r\a");
-	cout<<">>";
-	while (cmdptr != NULL)
+	while (argv[i] != '\0')
 	{
-		cout<<cmdptr<<" ";
-		int section = static_cast< int >(strlen(cmdptr));
-		while (i < (section+1))
+		while ((argv[i] != ' ')
+			&& (argv[i] != '\n')
+			&& (argv[i] != '\r')
+			&& (argv[i] != '\t')
+			&& (argv[i] != '>')
+			&& (argv[i] != '<'))
 		{
-
-			if (cmdptr[i]=='<')
-			{
-				if (temp != "")
-				cmds.push(s2c(temp,IOcounter));
-
-				if(cmdptr[i]=='<' && cmdptr[i+1]=='<')
-				{
-					cmds.push(dl);
-					i+=2;
-				}
-				else
-					{
-						cmds.push(less);
-						i++;
-					}
-			temp="";
-			IOcounter=1;
-			storelastcmd = true;
-			}// end if <
-
-			if (cmdptr[i]=='>')
-			{
-				if (temp != "")
-				cmds.push(s2c(temp,IOcounter));
-				if(cmdptr[i]=='>' && cmdptr[i+1]=='>')
-				{
-					cmds.push(dg);
-					i+=2;
-				}
-				else
-					{
-						cmds.push(grtr);
-						i++;
-					}
-			temp="";
-			IOcounter=1;
-			storelastcmd = true;
-			}// end if >
-
-			temp += cmdptr[i];
-			IOcounter++;
+			segment += argv[i];
+			segment_size++;
 			i++;
-		}// end while looking for <,<<,>>,> symbols
+			store_command = true;
+		}
+		if (store_command)
+		{
+			Qcommands.push(S2C(segment, segment_size));
+			segment = "";
+			segment_size = 0;
+			store_command = false;
+		}
 
-		if (storelastcmd)
-		 {
-			 cmds.push(s2c(temp,IOcounter));
-			 storelastcmd = false;
-		 }
-		 else
-			 cmds.push(cmdptr);
+		if (argv[i] == '>')
+		{
+			int double_check = i;
+			if (argv[double_check + 1] == '>')
+			{
+				Qcommands.push(GGRTR);
+				i++;
+			}
+			if (argv[double_check + 1] != '>')
+				Qcommands.push(GRTR);
+		}//end if >
 
-		 cmdptr = strtok(NULL," \n\t\r\a");
-	}
-	cout<<endl;
-	// store arguments plus 1 for a null argument
-	counter = cmds.size();
+		if (argv[i] == '<')
+		{
+			int double_check = i;
+			if (argv[double_check + 1] == '<')
+			{
+				Qcommands.push(LLESS);
+				i++;
+			}
+			if (argv[double_check + 1] != '<')
+				Qcommands.push(LESS);
+		}//end if <
+		i++;
+	}//end while
+
+	//Allocate memory for arguments inside of struct
+	int counter = Qcommands.size();
 	arguments->argc = counter;
 	arguments->argv = new char*[counter+1];
 
-	//move commands from q to char array
-	for (int i=0;i<counter;i++)
-		{
-			arguments->argv[i] = cmds.front();
-			cout<<arguments->argv[i]<<endl;
-			cmds.pop();
-		}
+	// Transfer commands into struct
+	for (int i = 0; i < counter; i++,Qcommands.pop())
+		arguments->argv[i] = Qcommands.front();
 
-	cmds.empty();
-	//Set last element equal to null to tell linux where to quit
 	arguments->argv[counter] = '\0';
 	//return pointer containing arguments
 	return arguments;
 }
-char* s2c(string data,int length)
+char* S2C(string segment,int mysize)
 {
-	char *p = new char[length+1];
-	for (int i =0;i<length;i++)
-	p[i]=data[i];
-
-	p[length]='\0';
-	return p;
+	//grab new memory for cstring
+	char *temp = new char[mysize+1];
+	// transfer characters from string to new char array
+	for (int i = 0; i < mysize; i++)
+		temp[i] = segment[i];
+	temp[mysize] = '\0';
+	return temp;
 }
 bool dir(args *cmdptr)
 {
+	int changedir_test;
 	bool temp = false;
 	// cycle through commands
 	for (int i =0;i<cmdptr->argc;i++)
 	{
 		if (cmdptr->argv[i]==std::string("cd"))
 		{
-			int changedir_test = chdir(cmdptr->argv[i++]);
+			if (cmdptr->argv[i+1]==std::string(".."))
+				 changedir_test = chdir("..");
+			if (cmdptr->argv[i+1]==std::string("../.."))
+				 changedir_test = chdir("../..");
+
 			if (changedir_test == -1)
-				cout<<">>Did not change directories"<<endl;
+				cout<<">>Error:Did not change directories."<<endl;
 			else
 				{
 					USER_PWD();
@@ -298,4 +307,13 @@ void USER_PWD()
 	char *newpath = getcwd(buffer,200);
 	string currpath = newpath;
 	cout<<">>"<<currpath<<endl;
+}
+void sig_handler (int sig)
+{
+	if (sig == SIGINT)
+		{
+			cout<<"\nExiting.."<<endl;
+			pid_t myid = getpid();
+			kill (myid,SIGTERM);
+		}
 }
