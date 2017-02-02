@@ -177,8 +177,6 @@ void fork_off(args *aptr)
 
 								if (checkEXEC == -1)
 									perror("exec");
-								cout<<"Child process now dieing.."<<endl;
-								kill (REpid,SIGTERM);
 								break;
 							}
 							default:
@@ -187,8 +185,10 @@ void fork_off(args *aptr)
 								cout<<">> Parent process "<<REpid<<" now continuing..:"<<endl;
 								break;
 						}//end switch
+			cout<<"Child process now dieing.."<<endl;
+			kill (REpid,SIGTERM);
 			}// if runexec
-}
+}// end fork off
 args* parser(char* argv)
 {
 	args *arguments = new args;
@@ -327,3 +327,4 @@ void quit_process()
 	kill (myid,SIGTERM);
 	exit(0);
 }
+
