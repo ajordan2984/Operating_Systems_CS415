@@ -2,23 +2,33 @@
  * main.cpp
  *
  *  Created on: Jan 26, 2017
- *      Author: andrew
-quick commands:
- g++ main.cpp -> compiles main when in directory
- .a/.out main.cpp -> only works when in directory of project
- ps -> shows working processes
- find help on topic : example - man fork() 
- execvp -> okay to use as its in the same family of exec commands
- chdir(*char) -> changes directory, save current directory and new directory
- ctrl + Z -> stop process
- kill %1 -> kills associated process by number
- */
-
-/*
- * main.cpp
+ *      Author: Andrew Jordan
+ *       		Lucas Pruitt
+ *       		Adam Moses
  *
- *  Created on: Jan 26, 2017
- *      Author: andrew
+ * Purpose: Simulate bash shell
+ * Design:
+ * If input from shell calling program
+ * - copy arguments,fork,execute commands
+ * If no input from shell calling program:
+ * - Grab line of input
+ * - Store in cstring
+ * - Parse cstring
+ * 		- convert each individual command to string
+ * 		- use length of string to allocate new memory for char[]
+ * 		- put in Q of commands converted
+ * 		- use size of Q to allocate new memory for struct char[]
+ * 		- transfer all commands to the struct char[] from Q
+ * 		- add any > || >> || < || <<
+ * 	- Check if directory change command
+ * 	- If not changing directories
+ *		- fork
+ *		- have child check out I/O redirect and do so
+ *		- have child process execute command
+ *		- kill child process off
+ *		- return to parent process
+ *	- If exit or ctrl-C pressed, exit process
+ *	- Repeat all steps above in infinite while in main.
  */
 
 #include <iostream>
@@ -47,14 +57,14 @@ struct args
 	char **argv;
 };
 
-args* parser(char*);
-void order(char*);
-char* S2C(string,int);
-bool dir(args*);
-void USER_PWD();
-void fork_off(args *);
-void sig_handler (int);
-
+args* parser(char*);  // Parses arguments and stores them inside an args struct
+void order(char*);	  // Sets up order of functions called for reuse if needed
+char* S2C(string,int);// Converts a string to a cstring, returns a char* to be stored in args
+bool dir(args*);	  // Changes and displays directories
+void USER_PWD();	  // Displays current working directory
+void fork_off(args *);// Creates child process to do work and child is terminated with kill(pid,SIGTERM);
+void sig_handler (int);// Catches ctrl-C and calls quit_process()
+void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
 
 int main(int argc,char *argv[])
@@ -75,7 +85,7 @@ int main(int argc,char *argv[])
 	{
 		if (signal(SIGINT,sig_handler)== SIG_ERR)
 		{
-			cout<<"Signal not caught.."<<endl;
+			cout<<"Signal not caught"<<endl;
 		}
 		for (int i=0;i<1500;i++)
 				input[i]= '\0';
@@ -86,7 +96,6 @@ int main(int argc,char *argv[])
 	}// end infinite while
 	return 0;
 }
-
 void order(char *input)
 {
 	args *aptr;
@@ -98,9 +107,9 @@ void fork_off(args *aptr)
 	bool runexec = false;
 	int checkEXEC;
 	if (aptr->argv[0]== std::string("exit_"))
-		exit(0);
+		quit_process();
 
-	runexec = dir(aptr);
+		runexec = dir(aptr);
 			if (!runexec)
 			{
 				pid_t REpid = fork(); // returned pid
@@ -145,12 +154,7 @@ void fork_off(args *aptr)
 								  }
 								if (aptr->argv[m] == std::string("<"))
 								  {
-
-								    	for (int i=0;i<aptr->argc;i++)
-								    		cout<<aptr->argv[i]<<endl;
-								    	cout<<"___________"<<endl;
-
-									char buffer[1000];
+										char buffer[1000];
 								    	auto newID = open(aptr->argv[m+1], O_CREAT
 								    		|O_RDONLY, 0644);
 
@@ -311,9 +315,12 @@ void USER_PWD()
 void sig_handler (int sig)
 {
 	if (sig == SIGINT)
-		{
-			cout<<"\nExiting.."<<endl;
-			pid_t myid = getpid();
-			kill (myid,SIGTERM);
-		}
+		quit_process();
+}
+void quit_process()
+{
+	cout<<"\nExiting.."<<endl;
+	pid_t myid = getpid();
+	kill (myid,SIGTERM);
+	exit(0);
 }
