@@ -32,19 +32,16 @@ void printM(int **, int);
 double test(int);
 void fill(int **arry, int input, int resized);
 int pow2(int data);
-void addM(int **A, int**B, int **C, int max);
 void addM(int *Adim, int *Bdim, int **A, int **B, int **C, int max);
 void addM(int **A, int **B, int **C, int *Cdim, int max);
-
-void subM(int **A, int **B, int **C, int max);
 void subM(int *Adim, int *Bdim, int **A, int **B, int **C, int max);
 void subM(int **A, int **B, int **C, int *Cdim, int max);
-
 void mulM(int **sub1, int **sub2, int **Accum, int max);
 int** createM(int msize);
 void split(int **A, int**B, int **C, int *Cdim, int max);
 void deleteM(int** data, int S);
 void deleteB(int*);
+
 int main()
 {
 	ofstream out;
@@ -62,9 +59,10 @@ int main()
 		cout << "500 Finished." << endl;
 		out << "1000:    " << test(1000) << endl;
 		cout << "1000 Finished." << endl;
-		//out << "5000:    " << test(5000) << endl;
-		//cout << "5000 Finished." << endl;
-		//out << "10000:   " << test(10000) << endl; */
+		out << "5000:    " << test(4096) << endl;
+		cout << "5000 Finished." << endl;
+		//out << "10000:   " << test(10000) << endl; 
+		//cout << "10k Finished" << endl;
 	}
 	cout << "Finished execution and writing file." << endl;
 	return 0;
@@ -86,7 +84,7 @@ double test(int input)
 	tmr.reset();
 	doSomething();
 	// Start MM
-	split(test1, test2, result,resultC, resized);
+	split(test1, test2, result, resultC, resized);
 	// find endtime
 	doSomeMoreWork();
 	double t = tmr.elapsed();
@@ -128,11 +126,13 @@ int pow2(int data)
 		i++;
 	return pow(2, i);
 }
-void addM(int **A, int **B, int **C, int max)
+void addM(int **A, int **B, int **C, int *Cdim, int max)
 {
+	int Crow = Cdim[0];
+	int Ccol = Cdim[1];
 	for (int i = 0; i < max; i++)
 		for (int j = 0; j < max; j++)
-			C[i][j] = A[i][j] + B[i][j];
+			C[i + Crow][j + Ccol] = A[i][j] + B[i][j];
 }
 void addM(int *Adim, int *Bdim, int **A, int **B, int **C, int max)
 {
@@ -147,20 +147,6 @@ void addM(int *Adim, int *Bdim, int **A, int **B, int **C, int max)
 	for (int i = 0; i < max; i++)
 		for (int j = 0; j < max; j++)
 			C[i][j] = A[i + Arow][j + Acol] + B[i + Brow][j + Bcol];
-}
-void addM(int **A, int **B, int **C,int *Cdim, int max)
-{
-	int Crow = Cdim[0];
-	int Ccol = Cdim[1];
-	for (int i = 0; i < max; i++)
-		for (int j = 0; j < max; j++)
-			C[i+Crow][j+Ccol] = A[i][j] + B[i][j];
-}
-void subM(int **A, int **B, int**C, int max)
-{
-	for (int i = 0; i < max; i++)
-		for (int j = 0; j < max; j++)
-			C[i][j] = A[i][j] - B[i][j];
 }
 void subM(int *Adim, int *Bdim, int **A, int **B, int **C, int max)
 {
@@ -178,7 +164,7 @@ void subM(int **A, int **B, int **C, int *Cdim, int max)
 	int Ccol = Cdim[1];
 	for (int i = 0; i < max; i++)
 		for (int j = 0; j < max; j++)
-			C[i+Crow][j+Ccol] = A[i][j] - B[i][j];
+			C[i + Crow][j + Ccol] = A[i][j] - B[i][j];
 }
 void mulM(int **sub1, int **sub2, int **Accum, int max)
 {
@@ -198,9 +184,9 @@ int** createM(int msize)
 	}
 	return temp;
 }
-void split(int **A, int **B, int **C,int *Cdim, int max)
+void split(int **A, int **B, int **C, int *Cdim, int max)
 {
-	if ((max / 2) < 2)
+	if ((max / 2) < 16)
 		mulM(A, B, C, max);
 	else
 	{
@@ -208,15 +194,15 @@ void split(int **A, int **B, int **C,int *Cdim, int max)
 		int **sub1 = createM(half);
 		int **sub2 = createM(half);
 		int *Zero = new int[2]{0, 0};
-		
+
 		int **A11 = createM(half);
 		int *A12_corner = new int[2]{0, half};
 		int *A21_corner = new int[2]{half, 0};
 		int **A22 = createM(half);
-		
+
 		int **B11 = createM(half);
-		int *B12_corner = new int[2]{0,half};
-		int *B21_corner = new int[2]{half,0};
+		int *B12_corner = new int[2]{0, half};
+		int *B21_corner = new int[2]{half, 0};
 		int **B22 = createM(half);
 
 		//[row][column]
@@ -224,49 +210,49 @@ void split(int **A, int **B, int **C,int *Cdim, int max)
 		for (int i = 0; i < half; i++)
 			for (int j = 0; j < half; j++)
 			{
-				A11[i][j] = A[i][j];
-				A22[i][j] = A[i + half][j + half];
-				B11[i][j] = B[i][j];
-				B22[i][j] = B[i + half][j + half];
+			A11[i][j] = A[i][j];
+			A22[i][j] = A[i + half][j + half];
+			B11[i][j] = B[i][j];
+			B22[i][j] = B[i + half][j + half];
 			}//end for spliting matrix
 
 		//M1
 		int **M1 = createM(half);
-		addM(A11, A22, sub1, half);
-		addM(B11, B22, sub2, half);
-		split(sub1, sub2, M1,Zero, half);
-		
+		addM(Zero, Zero, A11, A22, sub1, half);
+		addM(Zero, Zero, B11, B22, sub2, half);
+		split(sub1, sub2, M1, Zero, half);
+
 		//M2
 		int **M2 = createM(half);
-		addM(A21_corner,Zero,A, A22, sub1, half);
-		split(sub1, B11, M2,Zero, half);
+		addM(A21_corner, Zero, A, A22, sub1, half);
+		split(sub1, B11, M2, Zero, half);
 
 		//M3
 		int **M3 = createM(half);
-		subM(B12_corner,Zero,B, B22, sub1, half);
-		split(A11, sub1, M3,Zero, half);
+		subM(B12_corner, Zero, B, B22, sub1, half);
+		split(A11, sub1, M3, Zero, half);
 
 		//M4
 		int **M4 = createM(half);
-		subM(B21_corner,Zero,B,B11, sub1, half);
-		split(A22, sub1, M4,Zero, half);
+		subM(B21_corner, Zero, B, B11, sub1, half);
+		split(A22, sub1, M4, Zero, half);
 
 		//M5
 		int **M5 = createM(half);
-		addM(A12_corner,Zero,A,A11, sub1, half);
-		split(sub1, B22, M5,Zero, half);
+		addM(A12_corner, Zero, A, A11, sub1, half);
+		split(sub1, B22, M5, Zero, half);
 
 		//M6
 		int **M6 = createM(half);
-		subM(A21_corner,Zero,A, A11, sub1, half);
-		addM(B12_corner,Zero,B,B11, sub2, half);
-		split(sub1, sub2, M6,Zero, half);
+		subM(A21_corner, Zero, A, A11, sub1, half);
+		addM(B12_corner, Zero, B, B11, sub2, half);
+		split(sub1, sub2, M6, Zero, half);
 
 		//M7
 		int **M7 = createM(half);
-		subM(A12_corner,Zero,A, A22, sub1, half);
-		addM(B21_corner,Zero,B, B22, sub2, half);
-		split(sub1, sub2, M7,Zero,half);
+		subM(A12_corner, Zero, A, A22, sub1, half);
+		addM(B21_corner, Zero, B, B22, sub2, half);
+		split(sub1, sub2, M7, Zero, half);
 
 		// Clean up
 		deleteM(A11, half);
@@ -280,25 +266,25 @@ void split(int **A, int **B, int **C,int *Cdim, int max)
 		//
 		int crow = Cdim[0];
 		int ccol = Cdim[1];
-		
+
 		int *C11 = new int[2]{crow, ccol};
 		int *C12 = new int[2]{crow, half};
 		int *C21 = new int[2]{half, ccol};
 		int *C22 = new int[2]{half, half};
-		
-		addM(M1, M7, sub1, half);
-		subM(M4, M5, sub2, half);
+
+		addM(Zero, Zero, M1, M7, sub1, half);
+		subM(Zero, Zero, M4, M5, sub2, half);
 		// C11
-		addM(sub1, sub2,C, C11, half);
+		addM(sub1, sub2, C, C11, half);
 		//C12
-		addM(M3, M5,C, C12, half);
+		addM(M3, M5, C, C12, half);
 		//C21
-		addM(M2, M4,C, C21, half);
+		addM(M2, M4, C, C21, half);
 		//C22
-		subM(M1, M2, sub1, half);
-		addM(M3, M6, sub2, half);
+		subM(Zero, Zero, M1, M2, sub1, half);
+		addM(Zero, Zero, M3, M6, sub2, half);
 		//M1 - M2 + M3 + M6
-		addM(sub1, sub2, C,C22, half);
+		addM(sub1, sub2, C, C22, half);
 
 		// Delete temp matricies
 		deleteM(M1, half);
@@ -310,11 +296,12 @@ void split(int **A, int **B, int **C,int *Cdim, int max)
 		deleteM(M7, half);
 		deleteM(sub1, half);
 		deleteM(sub2, half);
-		// Delete Corners
+		// Delete Coners
 		deleteB(C11);
 		deleteB(C12);
 		deleteB(C21);
 		deleteB(C22);
+		deleteB(Zero);
 	}
 
 }//end void split
