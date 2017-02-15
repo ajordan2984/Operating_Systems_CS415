@@ -85,8 +85,8 @@ double test(int input)
 	// Resulting matrix
 	int **result = createM(resized);
 
-	
-	pthread_mutex_init(&ptr1->lock,NULL);
+
+	pthread_mutex_init(&ptr->lock,NULL);
 	ptr->A = test1;
 	ptr->B = test2;
 	ptr->C = result;
@@ -133,7 +133,7 @@ void fill(int **arry, int input, int resized)
 }
 int pow2(int data)
 {
-	int i = 1;
+	int i = 2;
 	while (i < data)
 		i = i * 2;
 	return i;
@@ -170,7 +170,6 @@ void loadargs(data *ptr,int **A, int **B, int **C, int max)
 	ptr->C = C;
 	ptr->max = max;
 }
-
 int** createM(int msize)
 {
 	int **temp = new int*[msize];
@@ -344,6 +343,7 @@ void *split(void *args)
 		pthread_create(&Mpool[23],NULL,deleteM,dptr);
 		delete_(dptr,B22,half);
 		pthread_create(&Mpool[24],NULL,deleteM,dptr);
+		
 		for (int i = 16; i<25;i++)
 		pthread_join(Mpool[i],NULL);
 
@@ -351,7 +351,7 @@ void *split(void *args)
 		int **C12 = createM(half);
 		int **C21 = createM(half);
 		int **C22 = createM(half);
-		
+
 		// Create threads make C matrix
 		pthread_t Cpool[8];
 		// M1 + M7
@@ -362,46 +362,46 @@ void *split(void *args)
 		pthread_create(&Cpool[1],NULL,subM,ptr2);
 		pthread_join(Cpool[0],NULL);
 	    pthread_join(Cpool[1],NULL);
-		
+
 		// C11 -> (M1 +M7)*(M4-M5)
 		loadargs(ptr1,sub1, sub2, C11, half);
 		pthread_create(&Cpool[2],NULL,addM,ptr1);
-		
+
 		//C12 -> M3 + M5
 		loadargs(ptr1,M3, M5, C12, half);
 		pthread_create(&Cpool[3],NULL,addM,ptr1);
-	
+
 		//C21 -> M2 + M4
 		loadargs(ptr1,M2, M4, C21, half);
 		pthread_create(&Cpool[4],NULL,addM,ptr1);
-		
+
 		// Wait on C11, C12, C21 to finish
 		pthread_join(Cpool[2],NULL);
 		pthread_join(Cpool[3],NULL);
 		pthread_join(Cpool[4],NULL);
-	
+
 		//C22
 		//M1 - M2
-		loadargs(ptr1,M1, M2, sub1, half)
+		loadargs(ptr1,M1, M2, sub1, half);
 		pthread_create(&Cpool[5],NULL,subM,ptr1);
 		//M3 + M6
-		loadargs(ptr2,M3, M6, sub2, half)
+		loadargs(ptr2,M3, M6, sub2, half);
 		pthread_create(&Cpool[6],NULL,addM,ptr2);
 		// Wait on 5 and 6
 		pthread_join(Cpool[5],NULL);
 		pthread_join(Cpool[6],NULL);
 
 		//(M1 - M2) + (M3 + M6)
-		loadargs(ptr1,sub1, sub2, C22, half)
-		pthread_create(&Cpool[7],NULL,addM,ptr1);	
-		pthread_join(Cpool[7],NULL);	
-		
+		loadargs(ptr1,sub1, sub2, C22, half);
+		pthread_create(&Cpool[7],NULL,addM,ptr1);
+		pthread_join(Cpool[7],NULL);
+
 		// Delete used structs for passing args
 		pthread_mutex_destroy(&ptr1->lock);
 		pthread_mutex_destroy(&ptr2->lock);
 		delete(ptr1);
 		delete(ptr2);
-				
+
 	for (int i = 0; i<half; i++)
 			for (int j = 0; j<half; j++)
 			{
@@ -450,7 +450,6 @@ void *split(void *args)
 		pthread_mutex_unlock(&startargs->lock);
 		pthread_exit(0);
 }//end void split
-
 void delete_(deldata *ptr,int **data, int s)
 {
 	pthread_mutex_lock(&ptr->lock);
