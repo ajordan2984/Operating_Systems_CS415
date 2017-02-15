@@ -57,7 +57,7 @@ int main()
 	}
 	else{
 		out << "Data Sets| Time for Matrix Multiplication" << endl;
-		out << "100:     " << test(17) << endl;
+		out << "100:     " << test(7) << endl;
 		//cout << "100 Finished." << endl;
 		//out << "500:     " << test(500) << endl;
 		//cout << "500 Finished." << endl;
@@ -98,17 +98,17 @@ double test(int input)
 				}
 
 	printM(result, resized);
-	usleep(6000);
+	//usleep(6000);
 	// clean up
 	deldata *delptr = new deldata; // new struct to hold arguments to delete
-	//delete_(delptr,result,resized);
-	//pthread_create(&MM[1],NULL,&deleteM,delptr);
-	//delete_(delptr,test2,resized);
-	//pthread_create(&MM[2],NULL,&deleteM,delptr);
-	//delete_(delptr,test1,resized);
-	//pthread_create(&MM[3],NULL,&deleteM,delptr);
-	///for (int i=1;i<4;i++)
-		//pthread_join(MM[i],NULL);
+	delete_(delptr,result,resized);
+	pthread_create(&MM[1],NULL,&deleteM,delptr);
+	delete_(delptr,test2,resized);
+	pthread_create(&MM[2],NULL,&deleteM,delptr);
+	delete_(delptr,test1,resized);
+	pthread_create(&MM[3],NULL,&deleteM,delptr);
+	for (int i=1;i<4;i++)
+		pthread_join(MM[i],NULL);
 	pthread_exit(0);
 	return 0.00;
 }
@@ -249,13 +249,6 @@ void *split(void *args)
 		pthread_join(Mpool[0],NULL);
 		pthread_join(Mpool[1],NULL);
 		// (A11 + A22) * (B11 + B22)
-
-		cout<<"sub1 after add"<<endl;
-		printM(sub1,half);
-		cout<<endl;
-		cout<<"sub2 after add"<<endl;
-		printM(sub2,half);
-		cout<<endl;
 
 		loadargs(ptr1,sub1, sub2, M1, half);
 		pthread_create(&Mpool[2],NULL,split,ptr1);
