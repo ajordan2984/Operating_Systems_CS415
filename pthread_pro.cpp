@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <string>
+#include <unistd.h>
 using namespace std;
 
 struct data{
@@ -56,7 +57,7 @@ int main()
 	}
 	else{
 		out << "Data Sets| Time for Matrix Multiplication" << endl;
-		out << "100:     " << test(15) << endl;
+		out << "100:     " << test(17) << endl;
 		//cout << "100 Finished." << endl;
 		//out << "500:     " << test(500) << endl;
 		//cout << "500 Finished." << endl;
@@ -85,28 +86,30 @@ double test(int input)
 	// Resulting matrix
 	int **result = createM(resized);
 
-
 	pthread_mutex_init(&ptr->lock,NULL);
-	ptr->A = test1;
-	ptr->B = test2;
-	ptr->C = result;
-	ptr->max = resized;
-	pthread_create(&MM[0],NULL,split,ptr);
-	pthread_join(MM[0],NULL);
 
-	//printM(result, resized);
+	loadargs(ptr,test1, test2, result, resized);
+	pthread_create(&MM[0],NULL,split,ptr);
+	//pthread_join(MM[0],NULL);
+	if (pthread_join(MM[0],NULL))
+				{
+					cout<<"couldnt join thread"<<endl;
+					exit(0);
+				}
+
+	printM(result, resized);
+	usleep(6000);
 	// clean up
 	deldata *delptr = new deldata; // new struct to hold arguments to delete
-
-	delete_(delptr,result,resized);
-	pthread_create(&MM[1],NULL,&deleteM,delptr);
-	delete_(delptr,test2,resized);
-	pthread_create(&MM[2],NULL,&deleteM,delptr);
-	delete_(delptr,test1,resized);
-	pthread_create(&MM[3],NULL,&deleteM,delptr);
-	for (int i=1;i<4;i++)
-		pthread_join(MM[i],NULL);
-
+	//delete_(delptr,result,resized);
+	//pthread_create(&MM[1],NULL,&deleteM,delptr);
+	//delete_(delptr,test2,resized);
+	//pthread_create(&MM[2],NULL,&deleteM,delptr);
+	//delete_(delptr,test1,resized);
+	//pthread_create(&MM[3],NULL,&deleteM,delptr);
+	///for (int i=1;i<4;i++)
+		//pthread_join(MM[i],NULL);
+	pthread_exit(0);
 	return 0.00;
 }
 void printM(int **matrix, int max)
@@ -145,6 +148,7 @@ void *addM(void *args)
 	for (int i = 0; i < max; i++)
 		for (int j = 0; j < max; j++)
 			ptr->C[i][j] = ptr->A[i][j] + ptr->B[i][j];
+	pthread_mutex_unlock(&ptr->lock);
 	pthread_exit(NULL);
 }
 void *subM(void *args)
@@ -154,6 +158,7 @@ void *subM(void *args)
 	for (int i = 0; i < max; i++)
 		for (int j = 0; j < max; j++)
 			ptr->C[i][j] = ptr->A[i][j] - ptr->B[i][j];
+	pthread_mutex_unlock(&ptr->lock);
 	pthread_exit(NULL);
 }
 void mulM(int **A, int **B, int **C, int max)
@@ -165,6 +170,7 @@ void mulM(int **A, int **B, int **C, int max)
 }
 void loadargs(data *ptr,int **A, int **B, int **C, int max)
 {
+	pthread_mutex_lock(&ptr->lock);
 	ptr->A = A;
 	ptr->B = B;
 	ptr->C = C;
@@ -184,10 +190,9 @@ int** createM(int msize)
 void *split(void *args)
 {
 	data *startargs = (data*)args;
-	pthread_mutex_lock(&startargs->lock);
 	int max = startargs->max;
 
-	if ((max / 2) < 16)
+	if ((max / 2) < 2)
 		mulM(startargs->A,startargs->B,startargs->C, max);
 	else
 	{
@@ -244,6 +249,14 @@ void *split(void *args)
 		pthread_join(Mpool[0],NULL);
 		pthread_join(Mpool[1],NULL);
 		// (A11 + A22) * (B11 + B22)
+
+		cout<<"sub1 after add"<<endl;
+		printM(sub1,half);
+		cout<<endl;
+		cout<<"sub2 after add"<<endl;
+		printM(sub2,half);
+		cout<<endl;
+
 		loadargs(ptr1,sub1, sub2, M1, half);
 		pthread_create(&Mpool[2],NULL,split,ptr1);
 		pthread_join(Mpool[2],NULL);
@@ -343,7 +356,7 @@ void *split(void *args)
 		pthread_create(&Mpool[23],NULL,deleteM,dptr);
 		delete_(dptr,B22,half);
 		pthread_create(&Mpool[24],NULL,deleteM,dptr);
-		
+
 		for (int i = 16; i<25;i++)
 		pthread_join(Mpool[i],NULL);
 
