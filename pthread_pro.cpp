@@ -32,7 +32,7 @@ struct deldata{
 };
 
 //[row][col]
-double test(int);
+void test(int);
 void printM(int **, int);
 void fill(int **arry, int input, int resized);
 int pow2(int data);
@@ -57,8 +57,8 @@ int main()
 	}
 	else{
 		out << "Data Sets| Time for Matrix Multiplication" << endl;
-		out << "100:     " << test(7) << endl;
-		//cout << "100 Finished." << endl;
+		test(100);
+		cout << "Finished quick test" << endl;
 		//out << "500:     " << test(500) << endl;
 		//cout << "500 Finished." << endl;
 		//out << "1000:    " << test(1000) << endl;
@@ -71,7 +71,7 @@ int main()
 	cout << "Finished execution and writing file." << endl;
 	return 0;
 }
-double test(int input)
+void test(int input)
 {
 	pthread_t MM[4];
 	data *ptr = new data;
@@ -93,14 +93,13 @@ double test(int input)
 	//pthread_join(MM[0],NULL);
 	if (pthread_join(MM[0],NULL))
 				{
-					cout<<"couldnt join thread"<<endl;
+					cout<<"Could not join thread"<<endl;
 					exit(0);
 				}
-
-	printM(result, resized);
-	//usleep(6000);
-	// clean up
+	cout<<"Multiplication Finished."<<endl;
 	deldata *delptr = new deldata; // new struct to hold arguments to delete
+	pthread_mutex_init(&delptr->lock,NULL); //Initialize lock
+
 	delete_(delptr,result,resized);
 	pthread_create(&MM[1],NULL,&deleteM,delptr);
 	delete_(delptr,test2,resized);
@@ -109,8 +108,8 @@ double test(int input)
 	pthread_create(&MM[3],NULL,&deleteM,delptr);
 	for (int i=1;i<4;i++)
 		pthread_join(MM[i],NULL);
-	pthread_exit(0);
-	return 0.00;
+
+	cout<<"leaving test"<<endl;
 }
 void printM(int **matrix, int max)
 {
@@ -192,7 +191,7 @@ void *split(void *args)
 	data *startargs = (data*)args;
 	int max = startargs->max;
 
-	if ((max / 2) < 2)
+	if ((max / 2) < 16)
 		mulM(startargs->A,startargs->B,startargs->C, max);
 	else
 	{
@@ -452,7 +451,9 @@ void *split(void *args)
 
 		for (int i = 25; i<38;i++)
 		pthread_join(Mpool[i],NULL);
+		delete(dptr); //delete pointer to struct that holds args for deleteling
 	}
+
 		pthread_mutex_unlock(&startargs->lock);
 		pthread_exit(0);
 }//end void split
