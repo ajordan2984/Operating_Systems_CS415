@@ -85,7 +85,8 @@ double test(int input)
 	// Resulting matrix
 	int **result = createM(resized);
 
-	pthread_mutex_lock(&ptr->lock);
+	
+	pthread_mutex_init(&ptr1->lock,NULL);
 	ptr->A = test1;
 	ptr->B = test2;
 	ptr->C = result;
@@ -184,6 +185,7 @@ int** createM(int msize)
 void *split(void *args)
 {
 	data *startargs = (data*)args;
+	pthread_mutex_lock(&startargs->lock);
 	int max = startargs->max;
 
 	if ((max / 2) < 16)
@@ -195,7 +197,7 @@ void *split(void *args)
 		pthread_mutex_init(&ptr1->lock,NULL); //Initialize lock1
 		pthread_mutex_init(&ptr2->lock,NULL);// Initialzie lock2
 
-		pthread_t Mpool[39]; //Number of threads used
+		pthread_t Mpool[38]; //Number of threads used
 		int half = max / 2;
 		int **sub1 = createM(half);
 		int **sub2 = createM(half);
@@ -228,8 +230,9 @@ void *split(void *args)
 
 		//***************************************
 		//Unlock the struct for passing args here
+		//Cant unlock struct as C is used below
 		//***************************************
-		pthread_mutex_unlock(&startargs->lock);
+		//pthread_mutex_unlock(&startargs->lock);
 
 		//M1
 		int **M1 = createM(half);
@@ -348,22 +351,58 @@ void *split(void *args)
 		int **C12 = createM(half);
 		int **C21 = createM(half);
 		int **C22 = createM(half);
-
-		addM(M1, M7, sub1, half);
-		subM(M4, M5, sub2, half);
-		// C11
-		addM(sub1, sub2, C11, half);
-		//C12
-		addM(M3, M5, C12, half);
-		//C21
-		addM(M2, M4, C21, half);
+		
+		// Create threads make C matrix
+		pthread_t Cpool[8];
+		// M1 + M7
+		loadargs(ptr1,M1, M7, sub1, half);
+		pthread_create(&Cpool[0],NULL,addM,ptr1);
+		// M4 - M5
+		loadargs(ptr2,M4, M5, sub2, half);
+		pthread_create(&Cpool[1],NULL,subM,ptr2);
+		pthread_join(Cpool[0],NULL);
+	    pthread_join(Cpool[1],NULL);
+		
+		// C11 -> (M1 +M7)*(M4-M5)
+		loadargs(ptr1,sub1, sub2, C11, half);
+		pthread_create(&Cpool[2],NULL,addM,ptr1);
+		
+		//C12 -> M3 + M5
+		loadargs(ptr1,M3, M5, C12, half);
+		pthread_create(&Cpool[3],NULL,addM,ptr1);
+	
+		//C21 -> M2 + M4
+		loadargs(ptr1,M2, M4, C21, half);
+		pthread_create(&Cpool[4],NULL,addM,ptr1);
+		
+		// Wait on C11, C12, C21 to finish
+		pthread_join(Cpool[2],NULL);
+		pthread_join(Cpool[3],NULL);
+		pthread_join(Cpool[4],NULL);
+	
 		//C22
-		subM(M1, M2, sub1, half);
-		addM(M3, M6, sub2, half);
-		//M1 - M2 + M3 + M6
-		addM(sub1, sub2, C22, half);
+		//M1 - M2
+		loadargs(ptr1,M1, M2, sub1, half)
+		pthread_create(&Cpool[5],NULL,subM,ptr1);
+		//M3 + M6
+		loadargs(ptr2,M3, M6, sub2, half)
+		pthread_create(&Cpool[6],NULL,addM,ptr2);
+		// Wait on 5 and 6
+		pthread_join(Cpool[5],NULL);
+		pthread_join(Cpool[6],NULL);
 
-		for (int i = 0; i<half; i++)
+		//(M1 - M2) + (M3 + M6)
+		loadargs(ptr1,sub1, sub2, C22, half)
+		pthread_create(&Cpool[7],NULL,addM,ptr1);	
+		pthread_join(Cpool[7],NULL);	
+		
+		// Delete used structs for passing args
+		pthread_mutex_destroy(&ptr1->lock);
+		pthread_mutex_destroy(&ptr2->lock);
+		delete(ptr1);
+		delete(ptr2);
+				
+	for (int i = 0; i<half; i++)
 			for (int j = 0; j<half; j++)
 			{
 				startargs->C[i][j] = C11[i][j];
@@ -391,24 +430,25 @@ void *split(void *args)
 
 		// Delete temporary sub matricies
 		delete_(dptr,sub1,half);
-		pthread_create(&Mpool[33],NULL,deleteM,dptr);
+		pthread_create(&Mpool[32],NULL,deleteM,dptr);
 		delete_(dptr,sub2,half);
-		pthread_create(&Mpool[34],NULL,deleteM,dptr);
+		pthread_create(&Mpool[33],NULL,deleteM,dptr);
 
 		// Delete Sub Matrix C11,C12,C21,C22
 		delete_(dptr,C11,half);
-		pthread_create(&Mpool[35],NULL,deleteM,dptr);
+		pthread_create(&Mpool[34],NULL,deleteM,dptr);
 		delete_(dptr,C12,half);
-		pthread_create(&Mpool[36],NULL,deleteM,dptr);
+		pthread_create(&Mpool[35],NULL,deleteM,dptr);
 		delete_(dptr,C21,half);
-		pthread_create(&Mpool[37],NULL,deleteM,dptr);
+		pthread_create(&Mpool[36],NULL,deleteM,dptr);
 		delete_(dptr,C22,half);
-		pthread_create(&Mpool[38],NULL,deleteM,dptr);
+		pthread_create(&Mpool[37],NULL,deleteM,dptr);
 
 		for (int i = 25; i<38;i++)
 		pthread_join(Mpool[i],NULL);
 	}
-pthread_exit(0);
+		pthread_mutex_unlock(&startargs->lock);
+		pthread_exit(0);
 }//end void split
 
 void delete_(deldata *ptr,int **data, int s)
