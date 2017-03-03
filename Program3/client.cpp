@@ -1,40 +1,3 @@
-/*
- * main.cpp
- *
- *  Created on: March 1, 2017
- *      Author: Andrew Jordan
- *
- * Purpose: IPC client
- * Design:
- * If input from shell calling program
- * - copy arguments,fork,execute commands
- * If no input from shell calling program:
- * - Grab line of input
- * - Store in cstring
- * - Parse cstring
- * 		- convert each individual command to string
- * 		- use length of string to allocate new memory for char[]
- * 		- put in Q of commands converted
- * 		- use size of Q to allocate new memory for struct char[]
- * 		- transfer all commands to the struct char[] from Q
- * 		- add any > || >> || < || <<
- * 	- Check if directory change command
- * 	- If not changing directories
- *		- fork
- *		- have child check out I/O redirect and do so
- *		- have child process execute command
- *		- kill child process off
- *		- return to parent process
- *	- If exit or ctrl-C pressed, exit process
- *	- Repeat all steps above in infinite while in main.
- */
-
-#include <iostream>
-// used with chdir() -> changes working directory
-#include <sys/wait.h>
-#include <dirent.h>
-#include <string>
-#include <ctype.h>
 #include <algorithm>
 #include <string.h>
 #include <signal.h>
@@ -67,22 +30,44 @@ void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
 char *id;
 int fd;
+int pipeget;
 
 int main(void)
 {
-	puts ("Client now starting up.");
 	args *aptr;
+	srand((int)time(0));
 
-	// Create random ID for client
-	//int rnd_id = (rand()%100)+15;
-	//string string_id = std::to_string(rnd_id);
-	//id = S2C(string_id,string_id.size()); // Store client id
+	// Create random ID for client from 10000 - 19999
+	int rnd_id = 10000 + rand()%9999;
+	string string_id = std::to_string(rnd_id);
+	id = S2C(string_id,string_id.size()); // Store client id
+	cout<<"Client:"<<id<<" starting up."<<endl;
 
+	// Create fifo for receiving output from server
+	string temppath = "/tmp/"+std::string(id);
+	cout<< temppath<<" is my new path for receiving output."<<endl;
+	const char *charpath = S2C(temppath,temppath.size()); // convert string path to char*
+
+	//Open fifo for receving output
+	int code = mkfifo(charpath, 0666);
+	// Error of fifo is already open
+	if (code == -1)
+	 perror ("mkfifo returned an error for receving - file may already exist");
+
+
+	// Open pipe for receiving
+	pipeget = open(charpath,O_RDWR);
+	if (pipeget == -1)
+		{
+			perror ("Cannot open fifo");
+			return EXIT_FAILURE;
+		}
 	// Create buffer to hold input from client
 	char input[1500];
-	fflush(stdin); // flush buffer of any left over characters
+	//fflush(stdin); // flush buffer of any left over characters
 	//Open fifo for write
-	fd = open("/tmp/demo6_fifo", O_WRONLY);
+
+	fd = open("/tmp/demo_fifo", O_WRONLY);
 	if (fd == -1)
 	{
 		perror ("Cannot open fifo");
@@ -103,14 +88,27 @@ int main(void)
 
 		int max = aptr->argc; // max number of arguments sent to server
 		char L = (char)max; // Convert number of arguments to char
-		write(fd,&L,1); // Send number to server so it knows how many are coming
 
+		write(fd,id,strlen(id)); // Send number to server of client
+		write(fd,&L,1); // Send number to server so it knows how many are coming
 		for (int i=0;i<max;i++)
 			{
 				L = (char)strlen(aptr->argv[i]);
 				write(fd,&L,1);
 				write(fd,aptr->argv[i],strlen(aptr->argv[i])); // Send string characters
 			}
+
+		char temp;
+		while (true)
+		{
+			read(pipeget,&temp,1); // Read size of command
+			if (temp == '\0')
+				break;
+			cout<<temp;
+		}
+		cout<<"____________________________"<<endl;
+		cout<<"Command returned successful."<<endl;
+		cout<<"____________________________"<<endl;
 	}// end infinite while
 
 	return EXIT_SUCCESS;
