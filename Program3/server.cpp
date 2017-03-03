@@ -5,29 +5,7 @@
  *      Author: Andrew Jordan
  *
  *
- * Purpose: Simulate bash shell
- * Design:
- * If input from shell calling program
- * - copy arguments,fork,execute commands
- * If no input from shell calling program:
- * - Grab line of input
- * - Store in cstring
- * - Parse cstring
- * 		- convert each individual command to string
- * 		- use length of string to allocate new memory for char[]
- * 		- put in Q of commands converted
- * 		- use size of Q to allocate new memory for struct char[]
- * 		- transfer all commands to the struct char[] from Q
- * 		- add any > || >> || < || <<
- * 	- Check if directory change command
- * 	- If not changing directories
- *		- fork
- *		- have child check out I/O redirect and do so
- *		- have child process execute command
- *		- kill child process off
- *		- return to parent process
- *	- If exit or ctrl-C pressed, exit process
- *	- Repeat all steps above in infinite while in main.
+ * Purpose: Simulate Server
  */
 
 #include <iostream>
@@ -56,8 +34,13 @@ struct args
 {
 	int argc;
 	char **argv;
+	char *id;
+	char *connection;
+
 };
 
+void restore_output(int,int);
+void set_connection(args*);
 int output(args*,int);
 int append(args*,int);
 int input(args*,int);
@@ -72,19 +55,19 @@ void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
 int fd;
 
-
 int main(void)
 {
+
 	puts ("Server - listening ");
 	//Open fifo for write
-	int code = mkfifo("/tmp/demo6_fifo", 0666);
+	int code = mkfifo("/tmp/demo_fifo", 0666);
 	// Error of fifo is already open
 	if (code == -1)
 	   perror ("mkfifo returned an error - file may already exist");
 	puts("FIFO connection has opened");
 
 	// Open fifo for reading
-		fd = open("/tmp/demo6_fifo", O_RDONLY);
+		fd = open("/tmp/demo_fifo", O_RDONLY);
 	// Fifo not opended, exit
 		if (fd ==-1)
 			{
@@ -94,9 +77,15 @@ int main(void)
 
 	while (true)
 	{
+			char *idbuff = new char[6];
+			idbuff[5] = '\0';
+
 		// Start work for finding args
 			int counter = 0; // Number of arguments coming in
 			char Len; // Length of arguments
+
+			// Read information
+			read (fd,idbuff,5);// Read and store id of client
 			read (fd,&Len,1); // Read number of arguments coming in
 			args *aptr = new args; // Create new pointer
 			int maxargs = (int)Len;// Save number of arguments
@@ -104,6 +93,9 @@ int main(void)
 			aptr ->argv = new char*[maxargs+1]; // Create new char* array to store arguments
 			aptr ->argv[maxargs]= '\0'; // Set last place to null
 			aptr ->argc = maxargs;
+			aptr ->id = idbuff;
+			set_connection(aptr);
+
 		while (true)
 		{
 			if (counter == aptr->argc)
@@ -119,66 +111,111 @@ int main(void)
 			aptr->argv[counter]= stringBuffer; 	// Save command in struct
 			counter++; // bump counter
 
-			printf("Server received: %s\n",stringBuffer); // print to screen
+			cout<<"Server received: "<<stringBuffer<<" from client:"<<idbuff<<endl;
 		}//end while read from pipe
 
 		fork_off(aptr); // Fork off and start command
-		cout<<"At the end"<<endl;
+		cout<<"_____________________________"<<endl;
+		cout<<"Server executed successfully."<<endl;
+		cout<<"_____________________________"<<endl;
 	}//end infinite while
 
 }
 
 void fork_off(args *aptr)
 {
-	bool runexec = true;
-	int checkEXEC;
+	cout<<"_____________________________"<<endl;
+	cout<<"Server executing command.    "<<endl;
+	cout<<"_____________________________"<<endl;
+
+	/* Steps:
+	 * A. Save stdout file descriptor
+	 * B. Open connection to client
+	 * C. Redirect stdout to client
+	 * D. Once child finishes, redirect output to stdout
+	 */
+	int save_out = dup(STDOUT_FILENO);// Save file descriptor of stdout
+	int newfd = open(aptr->connection, O_WRONLY);// Open fifo to send back output
+	fflush(stdout);			// Clear out std output
+	close(STDOUT_FILENO);	// Close std output
+	dup2(newfd, STDOUT_FILENO);// Redirect output to fifo client
+
+	int checkEXEC = 0;
+	int m = 0;
+
 	if (aptr->argv[0]== std::string("exit_"))
-		quit_process();
+		{
+			restore_output(newfd,save_out); // Restore output
+			quit_process();
+		}
 
-		runexec = dir(aptr);
-			if (!runexec)
+	/* Fork here and create child process
+	 * MYID > 0 : In parrent
+	 * MYID == 0 :In child
+	 * MYID == -1:Error
+	 */
+	pid_t MYID = fork();
+	if (MYID > 0)
+		{
+			if (wait(0)==-1)
+			perror("wait");
+			restore_output(newfd,save_out); // Restore output
+			cout<<">> Parent process "<<MYID<<" now continuing..:"<<endl;
+			cout<<"Child process now dieing.."<<endl;
+			kill(MYID,SIGTERM);
+		}
+
+	if(MYID == -1)
+		{
+			perror ("fork");
+			exit(1);
+		}
+
+	if (MYID == 0)
+		{
+			cout<<">> Child process:"<<MYID<<" starting up.."<<endl;
+			if (!dir(aptr))
 			{
-				pid_t MYID = fork(); // returned pid
-				if(MYID == -1)
+			for (int i = 0; i < aptr->argc; i++)
 				{
-					perror ("fork");
-					exit(1);
-				}
+					if (aptr->argv[i] == std::string(">") ||
+					aptr->argv[i] == std::string("<") ||
+					aptr->argv[i] == std::string("<<") ||
+					aptr->argv[i] == std::string(">>"))
+					{	m = i;	}
+				}//end for
+			if (aptr->argv[m] == std::string(">"))
+				checkEXEC = output(aptr,m);
 
-				if (MYID == 0)
-				{
-					cout<<">> Child process:"<<MYID<<" starting up.."<<endl;
-					int m = 0;
-					for (int i = 0; i < aptr->argc; i++)
-						{
-							if (aptr->argv[i] == std::string(">") ||
-							aptr->argv[i] == std::string("<") ||
-							aptr->argv[i] == std::string("<<") ||
-							aptr->argv[i] == std::string(">>"))
-							{	m = i;	}
-								  }
-							if (aptr->argv[m] == std::string(">"))
-								checkEXEC = output(aptr,m);
-							if (aptr->argv[m] == std::string(">>"))
-								checkEXEC = append(aptr,m);
-							if (aptr->argv[m] == std::string("<"))
-								checkEXEC = input(aptr,m);
-							if (m == 0)
-								checkEXEC = execvp(aptr->argv[0], aptr->argv);
-							if (checkEXEC == -1)
-								perror("exec");
+			if (aptr->argv[m] == std::string(">>"))
+				checkEXEC = append(aptr,m);
 
-							cout<<"Child process now dieing.."<<endl;
-							kill(MYID,SIGTERM);
-						 }
-				if (MYID > 0)
-					{
-						if (wait(0)==-1)
-						perror("wait");
-						cout<<">> Parent process "<<MYID<<" now continuing..:"<<endl;
-					}
-			}// if runexec
+			if (aptr->argv[m] == std::string("<"))
+				checkEXEC = input(aptr,m);
+
+			if (m == 0)
+				checkEXEC = execvp(aptr->argv[0], aptr->argv);
+
+			if (checkEXEC == -1)
+				perror("exec");
+			}//if not cd or pwd command
+		}//if MYID == 0
+
 }// end fork off
+void restore_output(int newfd, int save_out)
+{
+	char L = '\0';
+	write(newfd,&L,1);// Disconnect client by sending null
+	fflush(stdout);	// Clear out std output
+	close(newfd);	// Close redirected output
+	dup2(save_out,STDOUT_FILENO);// Restore output to console
+}
+void set_connection(args *aptr)
+{
+	string temppath = "/tmp/"+std::string(aptr->id); // Make string of path to client
+	cout<< temppath<<" is my new path."<<endl;
+	aptr->connection = S2C(temppath,temppath.size()); // convert string path to char*
+}
 int output(args *aptr,int m)
 {
 	int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_TRUNC, 0644);
