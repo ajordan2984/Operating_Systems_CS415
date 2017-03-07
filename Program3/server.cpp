@@ -1,15 +1,15 @@
-/*
- * main.cpp
- *
- *  Created on: March 1, 2017
- *      Author: Andrew Jordan
- *
- *
- * Purpose: Simulate Server
- */
+//============================================================================
+// Name        : source.cpp
+// Author      : Andrew Jordan
+// Version     : 41.7
+// Institution : CS415 Athens State University
+// Instructor  : Dr.Adam Lewis
+// Description : Server simulation using: Semaphores|Pipes|Shared Memory
+// command line build with proper flags: g++ source.cpp -o server.out -lpthread
+// start program from command line: ./server.out
+//============================================================================
 
 #include <iostream>
-// used with chdir() -> changes working directory
 #include <sys/wait.h>
 #include <dirent.h>
 #include <string>
@@ -28,6 +28,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+// Used in IPC
+#include<sys/ipc.h>
+#include<sys/shm.h>
+// Used in semaphore
+#include<semaphore.h>
+#include <pthread.h>
+#include <stdlib.h>
 using namespace std;
 
 struct args
@@ -36,11 +43,23 @@ struct args
 	char **argv;
 	char *id;
 	char *connection;
-
+	sem_t *sem_id;
+	void *shdmem;
 };
 
+struct client
+{
+	char *id;
+	char *connection;
+	sem_t *sem_id;
+	void *shdmem;
+};
+
+void branch(args*);
 void restore_output(int,int);
-void set_connection(args*);
+void set_connection(client*);
+void set_semaphore(client*);
+args* receive(client*);
 int output(args*,int);
 int append(args*,int);
 int input(args*,int);
@@ -49,159 +68,152 @@ args* parser(char*);  // Parses arguments and stores them inside an args struct
 char* S2C(string,int);// Converts a string to a cstring, returns a char* to be stored in args
 bool dir(args*);	  // Changes and displays directories
 void USER_PWD();	  // Displays current working directory
-void fork_off(args *);// Creates child process to do work and child is terminated with kill(pid,SIGTERM);
 void sig_handler (int);// Catches ctrl-C and calls quit_process()
 void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
-int fd;
+void add_client(args*);
+void remove_client(args*);
+
+int from_client;
+std::vector<int> clients;
 
 int main(void)
 {
-
-	puts ("Server - listening ");
-	//Open fifo for write
+	puts (">> |Server is opening connection.|");
+		//Open fifo for write
 	int code = mkfifo("/tmp/demo_fifo", 0666);
-	// Error of fifo is already open
+		// Error of fifo is already open
 	if (code == -1)
-	   perror ("mkfifo returned an error - file may already exist");
-	puts("FIFO connection has opened");
+		  perror ("mkfifo returned an error - file may already exist");
+	puts(">> |Connection to /tmp/demo_fifo is now open.|");
 
-	// Open fifo for reading
-		fd = open("/tmp/demo_fifo", O_RDONLY);
+	// Open a temp file for the server to receive connections
+	from_client = open("/tmp/demo_fifo", O_RDONLY);
+
 	// Fifo not opended, exit
-		if (fd ==-1)
-			{
-				perror("Cannot open FIFO for read");
-				return EXIT_FAILURE;
-			}
-
-	while (true)
-	{
-			char *idbuff = new char[6];
-			idbuff[5] = '\0';
-
-		// Start work for finding args
-			int counter = 0; // Number of arguments coming in
-			char Len; // Length of arguments
-
-			// Read information
-			read (fd,idbuff,5);// Read and store id of client
-			read (fd,&Len,1); // Read number of arguments coming in
-			args *aptr = new args; // Create new pointer
-			int maxargs = (int)Len;// Save number of arguments
-			cout<<"max args:"<<maxargs<<endl;
-			aptr ->argv = new char*[maxargs+1]; // Create new char* array to store arguments
-			aptr ->argv[maxargs]= '\0'; // Set last place to null
-			aptr ->argc = maxargs;
-			aptr ->id = idbuff;
-			set_connection(aptr);
+			if (from_client ==-1)
+				{
+					perror("Cannot open FIFO for read");
+					return EXIT_FAILURE;
+				}
 
 		while (true)
-		{
-			if (counter == aptr->argc)
-				break;
+			{
+				client *client1 = new client;
+				char *idbuff = new char[6];
+				idbuff[5] = '\0';
 
-			read(fd,&Len,1); // Read size of command
-			maxargs = (int)Len;// Save how many commands are coming in
-			char *stringBuffer = new char[maxargs+1];
-			memset(stringBuffer,0,maxargs);// Fill buffer with 0s
+				// Read information
+				read (from_client,idbuff,5);		// Read and store id of client
+				client1->id = idbuff; 				// Save client id in struct
+				set_connection(client1); 			// Set connection back to client
+				set_semaphore(client1);				// Set semaphore between processes
+				args *aptr = receive(client1); 		// Read and store commands from client
 
-			read (fd,stringBuffer,maxargs); 	// Read command
-			stringBuffer[maxargs] = '\0';		// Set last place as null
-			aptr->argv[counter]= stringBuffer; 	// Save command in struct
-			counter++; // bump counter
+				// Copy arguments over
+				aptr->connection = client1->connection;
+				aptr->id = client1->id;
+				aptr->sem_id = client1->sem_id;
+				aptr->shdmem = client1->shdmem;
+				add_client(aptr);					// Adds client to list of active users
 
-			cout<<"Server received: "<<stringBuffer<<" from client:"<<idbuff<<endl;
-		}//end while read from pipe
+				// Begin work
+				branch(aptr); 						// Fork off and start command
+				cout<<">> |Server executed successfully.|"<<endl;
+				cout<<">>"<<endl;
 
-		fork_off(aptr); // Fork off and start command
-		cout<<"_____________________________"<<endl;
-		cout<<"Server executed successfully."<<endl;
-		cout<<"_____________________________"<<endl;
-	}//end infinite while
+				if (clients.size()==0)
+					quit_process();
+			}//end infinite while
+	}//end main
 
-}
 
-void fork_off(args *aptr)
+void branch(args *aptr)
 {
-	cout<<"_____________________________"<<endl;
-	cout<<"Server executing command.    "<<endl;
-	cout<<"_____________________________"<<endl;
+	cout<<">> Server executing command from:"<<aptr->id<<endl;
 
 	/* Steps:
-	 * A. Save stdout file descriptor
-	 * B. Open connection to client
-	 * C. Redirect stdout to client
-	 * D. Once child finishes, redirect output to stdout
-	 */
+		 * A. Save stdout file descriptor
+		 * B. Open connection to client
+		 * C. Redirect stdout to client
+		 * D. Once cd or child finishes, redirect output to stdout
+	*/
+	bool CDcmd = true; // Save if command was cd or execvp
+	bool exitcond = false;
 	int save_out = dup(STDOUT_FILENO);// Save file descriptor of stdout
 	int newfd = open(aptr->connection, O_WRONLY);// Open fifo to send back output
 	fflush(stdout);			// Clear out std output
 	close(STDOUT_FILENO);	// Close std output
 	dup2(newfd, STDOUT_FILENO);// Redirect output to fifo client
-
+	// Variables for error checking
 	int checkEXEC = 0;
 	int m = 0;
 
+	// Check if exit command
 	if (aptr->argv[0]== std::string("exit_"))
 		{
 			restore_output(newfd,save_out); // Restore output
-			quit_process();
+			remove_client(aptr);
+			exitcond = true;
 		}
 
-	/* Fork here and create child process
-	 * MYID > 0 : In parrent
-	 * MYID == 0 :In child
-	 * MYID == -1:Error
-	 */
-	pid_t MYID = fork();
-	if (MYID > 0)
-		{
-			if (wait(0)==-1)
-			perror("wait");
-			restore_output(newfd,save_out); // Restore output
-			cout<<">> Parent process "<<MYID<<" now continuing..:"<<endl;
-			cout<<"Child process now dieing.."<<endl;
-			kill(MYID,SIGTERM);
-		}
-
-	if(MYID == -1)
-		{
-			perror ("fork");
-			exit(1);
-		}
-
-	if (MYID == 0)
-		{
-			cout<<">> Child process:"<<MYID<<" starting up.."<<endl;
-			if (!dir(aptr))
+	// Check if command changes directories
+	CDcmd = dir(aptr);
+	// If command changed directory then restore std output
+	if(CDcmd)
+		restore_output(newfd,save_out);
+	// If no cd command -> fork() then execvp()
+	if (!CDcmd && !exitcond)
+	{
+		/* Fork here and create child process
+			 * MYID > 0 : In parrent
+			 * MYID == 0 :In child
+			 * MYID == -1:Error
+		*/
+		pid_t MYID = fork();
+		if (MYID > 0)
 			{
-			for (int i = 0; i < aptr->argc; i++)
-				{
-					if (aptr->argv[i] == std::string(">") ||
-					aptr->argv[i] == std::string("<") ||
-					aptr->argv[i] == std::string("<<") ||
-					aptr->argv[i] == std::string(">>"))
-					{	m = i;	}
-				}//end for
-			if (aptr->argv[m] == std::string(">"))
-				checkEXEC = output(aptr,m);
+				if (wait(0)==-1)
+				perror("wait");
+				restore_output(newfd,save_out); // Restore output
+				cout<<">> |Parent process "<<MYID<<" continuing|"<<endl;
+				cout<<">> |Child process exiting|"<<endl;
+				kill(MYID,SIGTERM);
+			}
 
-			if (aptr->argv[m] == std::string(">>"))
-				checkEXEC = append(aptr,m);
+		if(MYID == -1)
+			{
+				perror ("fork");
+				exit(1);
+			}
+		if (MYID == 0)
+			{
+				cout<<">> |Child on server executing|"<<endl;
+				for (int i = 0; i < aptr->argc; i++)
+					{
+						if (aptr->argv[i] == std::string(">") ||
+						aptr->argv[i] == std::string("<") ||
+						aptr->argv[i] == std::string("<<") ||
+						aptr->argv[i] == std::string(">>"))
+						{	m = i;	}
+					}//end for
+					if (aptr->argv[m] == std::string(">"))
+						checkEXEC = output(aptr,m);
 
-			if (aptr->argv[m] == std::string("<"))
-				checkEXEC = input(aptr,m);
+					if (aptr->argv[m] == std::string(">>"))
+						checkEXEC = append(aptr,m);
 
-			if (m == 0)
-				checkEXEC = execvp(aptr->argv[0], aptr->argv);
+					if (aptr->argv[m] == std::string("<"))
+						checkEXEC = input(aptr,m);
 
-			if (checkEXEC == -1)
-				perror("exec");
-			}//if not cd or pwd command
-		}//if MYID == 0
+					if (m == 0)
+						checkEXEC = execvp(aptr->argv[0], aptr->argv);
 
-}// end fork off
+					if (checkEXEC == -1)
+						perror("exec");
+				}//if MYID == 0
+		}//else not cd command or exit command
+}//end branch
 void restore_output(int newfd, int save_out)
 {
 	char L = '\0';
@@ -210,12 +222,72 @@ void restore_output(int newfd, int save_out)
 	close(newfd);	// Close redirected output
 	dup2(save_out,STDOUT_FILENO);// Restore output to console
 }
-void set_connection(args *aptr)
+void set_connection(client *aptr)
 {
 	string temppath = "/tmp/"+std::string(aptr->id); // Make string of path to client
-	cout<< temppath<<" is my new path."<<endl;
 	aptr->connection = S2C(temppath,temppath.size()); // convert string path to char*
 }
+void set_semaphore(client *aptr)
+{
+	// Create semaphore name
+		string temppath = "/sem-"+std::string(aptr->id);
+		const char *sempath = S2C(temppath,temppath.size()); // convert string path to char*
+		// Create semaphore on client
+		aptr->sem_id = sem_open(sempath,O_CREAT,0660,0);
+		if (aptr->sem_id == SEM_FAILED)
+		{
+			perror("sem_open");
+			exit(1);
+		}
+}
+args* receive(client *client1)
+{
+	int id_connection = atoi(client1->id);
+	int shared_size = 1000;
+	int counter = 0;
+	string temp="";
+
+	// Used in opening connection
+	int shmid;
+	key_t key = id_connection;
+	void *sharedptr;
+	void *startptr;
+
+	// Create shared memory
+	shmid = shmget(key,shared_size,IPC_CREAT|O_RDONLY);
+		if (shmid <0)
+			{
+				perror("shmget");
+				exit(1);
+			}
+	// Attach shared memory
+	sharedptr = shmat(shmid,NULL,0);
+		if (sharedptr  == (char *)-1)
+		{
+				perror("shmat");
+				exit(1);
+		}
+	// Set a pointer to the start of shared memory
+		startptr = sharedptr;
+		client1->shdmem = sharedptr;
+	// Lock semaphore
+		if (sem_wait(client1->sem_id) == -1)
+				perror("sem_wait: sem_id");
+			// Grab length of argument
+		counter = *(int*)startptr;
+			// Bump pointer
+		startptr += sizeof(int);
+			// Set char to start of argument
+		char *a = (char*)startptr;
+			// Build argument string
+		for (int i=0;i<counter;i++)
+			temp+=*(a+i);
+
+			// Convert string to char*
+		char *newarg = S2C(temp,temp.size());
+		cout<<">> Server received: "<<newarg<<" from client:"<<id_connection<<endl;
+		return parser(newarg);
+}// end receive()
 int output(args *aptr,int m)
 {
 	int newfd = open(aptr->argv[m + 1],O_CREAT|O_WRONLY|O_TRUNC, 0644);
@@ -386,9 +458,35 @@ void sig_handler (int sig)
 }
 void quit_process()
 {
-	close (fd);
+	close (from_client);
 	cout<<"\nExiting.."<<endl;
 	pid_t myid = getpid();
 	kill (myid,SIGTERM);
 	exit(0);
+}
+void add_client(args *aptr)
+{
+	bool add_client = true;
+	int id = atoi(aptr->id);
+	for (unsigned int i = 0;i<clients.size();i++)
+		if (clients[i]==id)
+			add_client = false;
+
+	if (add_client)
+		clients.push_back(id);
+}
+void remove_client (args *aptr)
+{
+	int id = atoi(aptr->id);
+	if(shmdt(aptr->shdmem) < 0)
+	cout<<"|Error: detaching shared memory|"<<endl;
+
+	cout<<">> |Client:"<<id<<" Exiting.|"<<endl;
+	cout<<">> | "<<clients.size()-1<<" online.|"<<endl;
+	for (unsigned int i =0;i<clients.size();i++)
+			if (clients[i]==id)
+			{
+				clients.erase(clients.begin()+i);
+				break;
+			}
 }
