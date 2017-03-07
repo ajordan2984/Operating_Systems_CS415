@@ -1,10 +1,25 @@
+//============================================================================
+// Name        : source.cpp
+// Author      : Andrew Jordan
+// Version     : 41.7
+// Institution : CS415 Athens State University
+// Instructor  : Dr.Adam Lewis
+// Description : Client simulation using: Semaphores|Pipes|Shared Memory
+// command line build with proper flags: g++ source.cpp -o client.out -lpthread
+// start program from command line: ./client.out
+//============================================================================
+
+#include <iostream>
+#include <sys/wait.h>
+#include <dirent.h>
+#include <string>
+#include <ctype.h>
 #include <algorithm>
 #include <string.h>
 #include <signal.h>
-#include <queue>
 #include <signal.h>
 
-// Used in fifo
+// Used in named pipe
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -12,41 +27,49 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
-
-
+// Used in IPC
+#include<sys/ipc.h>
+#include<sys/shm.h>
+// Used in semaphore
+#include<semaphore.h>
 using namespace std;
 
-
-struct args
-{
-	int argc;
-	char **argv;
-};
-
-args* parser(char*);  // Parses arguments and stores them inside an args struct
-char* S2C(string,int);// Converts a string to a cstring, returns a char* to be stored in args
+void send(char *,int);
+char* S2C(string,int);// Converts a string to a cstring, returns a char*
 void sig_handler (int);// Catches ctrl-C and calls quit_process()
 void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
+sem_t *sem_id;
 char *id;
 int fd;
-int pipeget;
+int socket;
 
 int main(void)
 {
-	args *aptr;
 	srand((int)time(0));
 
 	// Create random ID for client from 10000 - 19999
 	int rnd_id = 10000 + rand()%9999;
 	string string_id = std::to_string(rnd_id);
 	id = S2C(string_id,string_id.size()); // Store client id
-	cout<<"Client:"<<id<<" starting up."<<endl;
+	cout<<"|Client:"<<id<<" starting up.|"<<endl;
+
 
 	// Create fifo for receiving output from server
 	string temppath = "/tmp/"+std::string(id);
-	cout<< temppath<<" is my new path for receiving output."<<endl;
 	const char *charpath = S2C(temppath,temppath.size()); // convert string path to char*
+
+	// Create semaphore name
+	string SEM_NAME = "/sem-"+std::string(id);
+	const char *sempath = S2C(SEM_NAME,SEM_NAME.size()); // convert string path to char*
+
+	// Create semaphore on client
+	sem_id = sem_open(sempath,O_CREAT,0660,0);
+	if (sem_id == SEM_FAILED)
+	{
+		perror("sem_open");
+		exit(1);
+	}
 
 	//Open fifo for receving output
 	int code = mkfifo(charpath, 0666);
@@ -54,19 +77,17 @@ int main(void)
 	if (code == -1)
 	 perror ("mkfifo returned an error for receving - file may already exist");
 
-
 	// Open pipe for receiving
-	pipeget = open(charpath,O_RDWR);
-	if (pipeget == -1)
+	socket = open(charpath,O_RDWR);
+	if (socket == -1)
 		{
 			perror ("Cannot open fifo");
-			return EXIT_FAILURE;
+			exit(1);
 		}
 	// Create buffer to hold input from client
-	char input[1500];
-	//fflush(stdin); // flush buffer of any left over characters
-	//Open fifo for write
+	char input[500];
 
+	//Open fifo for write
 	fd = open("/tmp/demo_fifo", O_WRONLY);
 	if (fd == -1)
 	{
@@ -80,115 +101,66 @@ int main(void)
 		{
 			cout<<"Signal not caught"<<endl;
 		}
-		for (int i=0;i<1500;i++)
+		for (int i=0;i<500;i++)
 				input[i]= '\0';
 
-		fgets(input,1500,stdin);
-		aptr = parser(input);
+		cout<<">> |Please enter a command to the server:|"<<endl;
+		fgets(input,500,stdin);
 
-		int max = aptr->argc; // max number of arguments sent to server
-		char L = (char)max; // Convert number of arguments to char
-
-		write(fd,id,strlen(id)); // Send number to server of client
-		write(fd,&L,1); // Send number to server so it knows how many are coming
-		for (int i=0;i<max;i++)
-			{
-				L = (char)strlen(aptr->argv[i]);
-				write(fd,&L,1);
-				write(fd,aptr->argv[i],strlen(aptr->argv[i])); // Send string characters
-			}
-
+		// Send id of client to the server
+		write(fd,id,strlen(id));
+		// Send arguments via shared memory
+		send (input,rnd_id);
+		// Wait for reply from server
 		char temp;
 		while (true)
 		{
-			read(pipeget,&temp,1); // Read size of command
+			read(socket,&temp,1); // Read size of command
 			if (temp == '\0')
 				break;
 			cout<<temp;
 		}
-		cout<<"____________________________"<<endl;
-		cout<<"Command returned successful."<<endl;
-		cout<<"____________________________"<<endl;
+		cout<<">> |Command returned successful.|"<<endl;
 	}// end infinite while
-
-	return EXIT_SUCCESS;
 	return 0;
 }
-
-args* parser(char* argv)
+void send(char *input,int id_connection)
 {
-	args *arguments = new args;
-	string segment = "";
-	int segment_size = 0;
-	int i = 0;
-	char *GGRTR = new char[3]{'>', '>', '\0'};
-	char *LLESS = new char[3]{'<', '<', '\0'};
-	char *GRTR = new char[2]{'>', '\0'};
-	char *LESS = new char[2]{'<', '\0'};
-	bool store_command = false;
-	queue<char*> Qcommands;
-
-	while (argv[i] != '\0')
-	{
-		while ((argv[i] != ' ')
-			&& (argv[i] != '\n')
-			&& (argv[i] != '\r')
-			&& (argv[i] != '\t')
-			&& (argv[i] != '>')
-			&& (argv[i] != '<'))
+	// Used in creating shared memory
+	int shared_size = 1000;
+	int shmid;
+	key_t key = id_connection;
+	void *sharedptr;
+	void *startptr;
+	// Create shared memory
+		shmid = shmget(key,shared_size,IPC_CREAT|0666);
+		if (shmid <0)
+		 {
+			 perror("shmget");
+			 exit(1);
+		 }
+	// Attach shared memory
+		sharedptr = shmat(shmid,NULL,0);
+		if (sharedptr  == (char *)-1)
 		{
-			segment += argv[i];
-			segment_size++;
-			i++;
-			store_command = true;
+			perror("shmat");
+			exit(1);
 		}
-		if (store_command)
-		{
-			Qcommands.push(S2C(segment, segment_size));
-			segment = "";
-			segment_size = 0;
-			store_command = false;
-		}
+	// Set a pointer to the start of shared memory
+		startptr = sharedptr;
 
-		if (argv[i] == '>')
-		{
-			int double_check = i;
-			if (argv[double_check + 1] == '>')
-			{
-				Qcommands.push(GGRTR);
-				i++;
-			}
-			if (argv[double_check + 1] != '>')
-				Qcommands.push(GRTR);
-		}//end if >
+	cout<<"Sending:"<<input<<endl;
+		//Send length of c-string
+	*(int*)startptr = strlen(input);
+		//Bump pointer
+	startptr += sizeof(int);
+		//Copy c-string into shared memory
+	strcpy((char*)startptr,input);
+		//Unblock server
+	if (sem_post(sem_id) == -1)
+		perror("sem_post: sem_id");
 
-		if (argv[i] == '<')
-		{
-			int double_check = i;
-			if (argv[double_check + 1] == '<')
-			{
-				Qcommands.push(LLESS);
-				i++;
-			}
-			if (argv[double_check + 1] != '<')
-				Qcommands.push(LESS);
-		}//end if <
-		i++;
-	}//end while
-
-	//Allocate memory for arguments inside of struct
-	int counter = Qcommands.size();
-	arguments->argc = counter;
-	arguments->argv = new char*[counter+1];
-
-	// Transfer commands into struct
-	for (int i = 0; i < counter; i++,Qcommands.pop())
-		arguments->argv[i] = Qcommands.front();
-
-	arguments->argv[counter] = '\0';
-	//return pointer containing arguments
-	return arguments;
-}
+}//end send()
 char* S2C(string segment,int mysize)
 {
 	//grab new memory for cstring
@@ -206,6 +178,7 @@ void sig_handler (int sig)
 }
 void quit_process()
 {
+	close (socket);
 	close (fd);
 	cout<<"\nExiting.."<<endl;
 	pid_t myid = getpid();
