@@ -1,10 +1,10 @@
 //============================================================================
 // Name        : source.cpp
 // Author      : Andrew Jordan
-// Version     : 41.7
+// Version     : 5.0
 // Institution : CS415 Athens State University
 // Instructor  : Dr.Adam Lewis
-// Description : Client simulation using: Semaphores|Pipes|Shared Memory
+// Description : Client simulation using: Pthreads|Semaphores|Pipes|Shared Memory
 // command line build with proper flags: g++ source.cpp -o client.out -lpthread
 // start program from command line: ./client.out
 //============================================================================
@@ -118,6 +118,8 @@ int main(void)
 			read(socket,&temp,1); // Read size of command
 			if (temp == '\0')
 				break;
+			if (temp == '$')
+				quit_process();
 			cout<<temp;
 		}
 		cout<<">> |Command returned successful.|"<<endl;
