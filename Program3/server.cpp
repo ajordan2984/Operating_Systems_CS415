@@ -1,10 +1,10 @@
 //============================================================================
 // Name        : source.cpp
 // Author      : Andrew Jordan
-// Version     : 41.7
+// Version     : 5.0
 // Institution : CS415 Athens State University
 // Instructor  : Dr.Adam Lewis
-// Description : Server simulation using: Semaphores|Pipes|Shared Memory
+// Description : Server simulation using: Pthreads|Semaphores|Pipes|Shared Memory
 // command line build with proper flags: g++ source.cpp -o server.out -lpthread
 // start program from command line: ./server.out
 //============================================================================
@@ -55,14 +55,14 @@ struct client
 	void *shdmem;
 };
 
-void branch(args*);
-void restore_output(int,int);
-void set_connection(client*);
-void set_semaphore(client*);
-args* receive(client*);
-int output(args*,int);
-int append(args*,int);
-int input(args*,int);
+void *branch(void*);			// Start commands for each new thread
+void restore_output(int,int);	// Restore output to server
+void set_connection(client*);	// Set std out to client
+void set_semaphore(client*);	// Set semaphore for client to read shared memory
+args* receive(client*);			// Read shared memory from client
+int output(args*,int);			// Redirect output to specific file
+int append(args*,int);			// Append output to specific file
+int input(args*,int);			// Redirect std in from file
 
 args* parser(char*);  // Parses arguments and stores them inside an args struct
 char* S2C(string,int);// Converts a string to a cstring, returns a char* to be stored in args
@@ -71,14 +71,17 @@ void USER_PWD();	  // Displays current working directory
 void sig_handler (int);// Catches ctrl-C and calls quit_process()
 void quit_process();  // Terminates current process with kill(pid,SIGTERM)
 
-void add_client(args*);
-void remove_client(args*);
+void add_client(args*);		// Adds client to list of users on server
+void remove_client(args*);	// Removes client from list of users active
 
 int from_client;
 std::vector<int> clients;
 
 int main(void)
 {
+	pthread_t SERVERpool[20]; //Number of threads used
+	int pid = 0;
+
 	puts (">> |Server is opening connection.|");
 		//Open fifo for write
 	int code = mkfifo("/tmp/demo_fifo", 0666);
@@ -118,20 +121,23 @@ int main(void)
 				add_client(aptr);					// Adds client to list of active users
 
 				// Begin work
-				branch(aptr); 						// Fork off and start command
+				pthread_create(&SERVERpool[pid],NULL,&branch,aptr); //Send thread to do work
+				pthread_join(SERVERpool[pid],NULL);
+				pid++;												// Mark thread as used
 				cout<<">> |Server executed successfully.|"<<endl;
 				cout<<">>"<<endl;
 
-				if (clients.size()==0)
-					quit_process();
+				// Quit if all clients are off OR no more threads
+				if (clients.size()==0 || pid == 20)
+						quit_process();
 			}//end infinite while
 	}//end main
 
 
-void branch(args *aptr)
+void *branch(void *data_in)
 {
+	args *aptr = (args*)data_in;
 	cout<<">> Server executing command from:"<<aptr->id<<endl;
-
 	/* Steps:
 		 * A. Save stdout file descriptor
 		 * B. Open connection to client
@@ -152,6 +158,7 @@ void branch(args *aptr)
 	// Check if exit command
 	if (aptr->argv[0]== std::string("exit_"))
 		{
+			cout<<'$'<<endl; // Send exit signal to client
 			restore_output(newfd,save_out); // Restore output
 			remove_client(aptr);
 			exitcond = true;
@@ -161,7 +168,10 @@ void branch(args *aptr)
 	CDcmd = dir(aptr);
 	// If command changed directory then restore std output
 	if(CDcmd)
-		restore_output(newfd,save_out);
+		{
+			restore_output(newfd,save_out);
+			pthread_exit(NULL);
+		}
 	// If no cd command -> fork() then execvp()
 	if (!CDcmd && !exitcond)
 	{
@@ -213,6 +223,7 @@ void branch(args *aptr)
 						perror("exec");
 				}//if MYID == 0
 		}//else not cd command or exit command
+	pthread_exit(NULL);
 }//end branch
 void restore_output(int newfd, int save_out)
 {
@@ -482,11 +493,11 @@ void remove_client (args *aptr)
 	cout<<"|Error: detaching shared memory|"<<endl;
 
 	cout<<">> |Client:"<<id<<" Exiting.|"<<endl;
-	cout<<">> | "<<clients.size()-1<<" online.|"<<endl;
 	for (unsigned int i =0;i<clients.size();i++)
 			if (clients[i]==id)
 			{
 				clients.erase(clients.begin()+i);
 				break;
 			}
+	cout<<">> | "<<clients.size()<<" online.|"<<endl;
 }
