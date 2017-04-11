@@ -267,7 +267,7 @@ void Socket::set_non_blocking(const bool b)
 //*************************************************************************************
 //The Client Socket Class
 //
-class CLientSocket : private Socket {
+class ClientSocket : private Socket {
 	public:
 		CLientSocket (std::string host, int port);
 		virtual ~ClientSocket() {};
