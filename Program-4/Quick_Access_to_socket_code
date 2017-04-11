@@ -340,7 +340,7 @@ using namespace std;
 int main(int argc, char *argv[]) {
 
 	try {
-		ClientSockt client_socket ("localhost", 30000);
+		ClientSocket client_socket ("localhost", 30000);
 		string reply;
 		
 		try {
